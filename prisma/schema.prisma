@@ -1,0 +1,734 @@
+// Meta Ads Intelligence Platform — All 32 Tables
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────
+// GROUP 1: CORE PLATFORM
+// ─────────────────────────────────────────
+
+model User {
+  id                  String    @id @default(uuid())
+  username            String    @unique
+  email               String?   @unique
+  passwordHash        String
+  displayName         String?
+  role                String // owner | analyst | client_manager | client_viewer
+  isActive            Boolean   @default(true)
+  is2faEnabled        Boolean   @default(false)
+  totpSecret          String?
+  loginAttemptCount   Int       @default(0)
+  lockedUntil         DateTime?
+  resetToken          String?   @db.Char(36)
+  resetTokenExpiresAt DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  clientAccess  ClientUserAccess[]
+  auditLogs     AuditLog[]
+  campaignNotes CampaignNote[]
+  sharedLinks   SharedDashboardLink[]
+
+  @@map("users")
+}
+
+model Client {
+  id           String   @id @default(uuid())
+  displayName  String
+  industry     String?
+  timezone     String   @default("UTC")
+  currencyCode String   @default("USD")
+  logoUrl      String?
+  isActive     Boolean  @default(true)
+  notes        String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  userAccess       ClientUserAccess[]
+  metaConnections  MetaConnection[]
+  businessManagers BusinessManager[]
+  adAccounts       AdAccount[]
+  kpiTargets       ClientKpiTarget[]
+  leads            Lead[]
+  competitors      CompetitorProfile[]
+  alertRecipients  AlertRecipient[]
+  instantAlerts    InstantAlert[]
+  sharedLinks      SharedDashboardLink[]
+  campaignNotes    CampaignNote[]
+
+  @@map("clients")
+}
+
+model ClientUserAccess {
+  id          String   @id @default(uuid())
+  clientId    String
+  userId      String
+  accessLevel String // read | manage
+  createdAt   DateTime @default(now())
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, userId])
+  @@map("client_user_access")
+}
+
+// ─────────────────────────────────────────
+// GROUP 2: META ASSETS
+// ─────────────────────────────────────────
+
+model MetaConnection {
+  id                   String    @id @default(uuid())
+  clientId             String
+  connectionName       String
+  authMode             String // system_user | user_token
+  metaAppId            String?
+  accessTokenHash      String    @db.Text
+  tokenLastValidatedAt DateTime?
+  status               String // active | disconnected | error
+  permissionsJson      Json?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("meta_connections")
+}
+
+model BusinessManager {
+  id             String    @id @default(uuid())
+  clientId       String
+  metaBusinessId String    @unique
+  name           String
+  isActive       Boolean   @default(true)
+  rawPayload     Json?
+  lastSyncedAt   DateTime?
+
+  client     Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  adAccounts AdAccount[]
+
+  @@map("business_managers")
+}
+
+model AdAccount {
+  id                String    @id @default(uuid())
+  clientId          String
+  businessManagerId String?
+  metaAdAccountId   String    @unique
+  name              String
+  currency          String    @default("USD")
+  timezone          String    @default("UTC")
+  effectiveStatus   String?
+  isActive          Boolean   @default(true)
+  rawPayload        Json?
+  lastSyncedAt      DateTime?
+
+  client          Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  businessManager BusinessManager?       @relation(fields: [businessManagerId], references: [id])
+  campaigns       Campaign[]
+  pacingSnapshots BudgetPacingSnapshot[]
+
+  @@map("ad_accounts")
+}
+
+model Campaign {
+  id              String    @id @default(uuid())
+  clientId        String
+  adAccountId     String
+  metaCampaignId  String    @unique
+  name            String
+  objective       String?
+  effectiveStatus String?
+  buyingType      String?
+  dailyBudget     Decimal?  @db.Decimal(18, 2)
+  lifetimeBudget  Decimal?  @db.Decimal(18, 2)
+  startTime       DateTime?
+  stopTime        DateTime?
+  rawPayload      Json?
+  createdTimeMeta DateTime?
+  updatedTimeMeta DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  adSets    AdSet[]
+  waMapping WhatsAppCampaign[]
+  leads     Lead[]
+  adAccount AdAccount          @relation(fields: [adAccountId], references: [id])
+
+  @@map("campaigns")
+}
+
+model AdSet {
+  id               String    @id @default(uuid())
+  clientId         String
+  campaignId       String
+  metaAdSetId      String    @unique
+  name             String
+  effectiveStatus  String?
+  optimizationGoal String?
+  billingEvent     String?
+  dailyBudget      Decimal?  @db.Decimal(18, 2)
+  lifetimeBudget   Decimal?  @db.Decimal(18, 2)
+  targetingJson    Json?
+  rawPayload       Json?
+  createdTimeMeta  DateTime?
+  updatedAt        DateTime  @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  ads      Ad[]
+
+  @@map("ad_sets")
+}
+
+model Ad {
+  id              String    @id @default(uuid())
+  clientId        String
+  adSetId         String
+  campaignId      String
+  metaAdId        String    @unique
+  name            String
+  effectiveStatus String?
+  creativeId      String?
+  rawPayload      Json?
+  createdTimeMeta DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  adSet    AdSet       @relation(fields: [adSetId], references: [id], onDelete: Cascade)
+  creative AdCreative? @relation(fields: [creativeId], references: [id])
+  leads    Lead[]
+
+  @@map("ads")
+}
+
+model AdCreative {
+  id               String   @id @default(uuid())
+  clientId         String
+  metaCreativeId   String   @unique
+  name             String?
+  primaryText      String?  @db.Text
+  headline         String?  @db.VarChar(500)
+  description      String?  @db.Text
+  callToActionType String?
+  imageUrl         String?  @db.VarChar(1000)
+  thumbnailUrl     String?  @db.VarChar(1000)
+  videoId          String?
+  objectStorySpec  Json?
+  rawPayload       Json?
+  updatedAt        DateTime @updatedAt
+
+  ads            Ad[]
+  analysis       CreativeAnalysis?
+  fatigueSignals CreativeFatigueSignal[]
+
+  @@map("ad_creatives")
+}
+
+// ─────────────────────────────────────────
+// GROUP 3: PERFORMANCE DATA
+// ─────────────────────────────────────────
+
+model InsightSnapshot {
+  id          String   @id @default(uuid())
+  clientId    String
+  adAccountId String?
+  campaignId  String?
+  adSetId     String?
+  adId        String?
+  creativeId  String?
+  entityLevel String // account | campaign | adset | ad
+  granularity String // hourly | daily
+  dateStart   DateTime
+  dateStop    DateTime
+  snapshotAt  DateTime @default(now())
+
+  spend            Decimal? @db.Decimal(18, 2)
+  impressions      BigInt?
+  reach            BigInt?
+  frequency        Decimal? @db.Decimal(10, 4)
+  clicks           BigInt?
+  inlineLinkClicks BigInt?
+  ctr              Decimal? @db.Decimal(10, 6)
+  cpc              Decimal? @db.Decimal(18, 4)
+  cpm              Decimal? @db.Decimal(18, 4)
+
+  leads           Decimal? @db.Decimal(18, 4)
+  purchases       Decimal? @db.Decimal(18, 4)
+  purchaseValue   Decimal? @db.Decimal(18, 2)
+  messagesStarted Decimal? @db.Decimal(18, 4)
+
+  cpl            Decimal? @db.Decimal(18, 4)
+  roas           Decimal? @db.Decimal(10, 4)
+  costPerMessage Decimal? @db.Decimal(18, 4)
+  conversionRate Decimal? @db.Decimal(10, 6)
+
+  actionsJson      Json?
+  actionValuesJson Json?
+
+  @@index([clientId, dateStart, entityLevel])
+  @@index([campaignId, dateStart])
+  @@index([creativeId, dateStart])
+  @@map("insight_snapshots")
+}
+
+model InsightBreakdown {
+  id             String   @id @default(uuid())
+  clientId       String
+  campaignId     String?
+  adSetId        String?
+  adId           String?
+  breakdownType  String // age | gender | country | placement
+  breakdownValue String
+  dateStart      DateTime
+  dateStop       DateTime
+
+  spend       Decimal? @db.Decimal(18, 2)
+  impressions BigInt?
+  reach       BigInt?
+  clicks      BigInt?
+  leads       Decimal? @db.Decimal(18, 4)
+  cpl         Decimal? @db.Decimal(18, 4)
+
+  @@index([clientId, breakdownType, dateStart])
+  @@map("insight_breakdowns")
+}
+
+model PixelEvent {
+  id           String   @id @default(uuid())
+  clientId     String
+  campaignId   String?
+  adSetId      String?
+  adId         String?
+  eventType    String
+  eventCount   BigInt   @default(0)
+  eventDate    DateTime @db.Date
+  costPerEvent Decimal? @db.Decimal(18, 4)
+  spend        Decimal? @db.Decimal(18, 2)
+  rawPayload   Json?
+  createdAt    DateTime @default(now())
+
+  @@index([clientId, eventDate])
+  @@index([campaignId, eventDate])
+  @@map("pixel_events")
+}
+
+// ─────────────────────────────────────────
+// GROUP 4: LEAD QUALITY
+// ─────────────────────────────────────────
+
+model Lead {
+  id          String  @id @default(uuid())
+  clientId    String
+  adAccountId String?
+  campaignId  String?
+  adSetId     String?
+  adId        String?
+  creativeId  String?
+
+  leadSource  String
+  metaLeadId  String? @unique
+  externalRef String?
+
+  phone        String? @db.VarChar(50)
+  name         String?
+  email        String?
+  leadDataJson Json?
+
+  qualityStatus      String    @default("new")
+  qualityUpdatedAt   DateTime?
+  qualityUpdatedById String?
+  qualityNote        String?   @db.Text
+
+  receivedAt DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  client   Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  campaign Campaign? @relation(fields: [campaignId], references: [id])
+  ad       Ad?       @relation(fields: [adId], references: [id])
+
+  @@index([clientId, campaignId, receivedAt])
+  @@index([clientId, qualityStatus])
+  @@index([metaLeadId])
+  @@map("leads")
+}
+
+model ClientKpiTarget {
+  id           String   @id @default(uuid())
+  clientId     String
+  monthYear    String   @db.Char(7)
+  targetLeads  Int?
+  targetBudget Decimal? @db.Decimal(18, 2)
+  targetCpl    Decimal? @db.Decimal(18, 4)
+  targetRoas   Decimal? @db.Decimal(10, 4)
+  targetCpql   Decimal? @db.Decimal(18, 4)
+  notes        String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, monthYear])
+  @@map("client_kpi_targets")
+}
+
+model BudgetPacingSnapshot {
+  id             String   @id @default(uuid())
+  clientId       String
+  adAccountId    String
+  snapshotDate   DateTime @db.Date
+  month          DateTime @db.Date
+  monthBudget    Decimal? @db.Decimal(18, 2)
+  spentToDate    Decimal? @db.Decimal(18, 2)
+  projectedSpend Decimal? @db.Decimal(18, 2)
+  pacingStatus   String
+  pacingPercent  Decimal? @db.Decimal(10, 4)
+  daysElapsed    Int
+  daysRemaining  Int
+  dailyRunRate   Decimal? @db.Decimal(18, 4)
+  createdAt      DateTime @default(now())
+
+  adAccount AdAccount @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, snapshotDate])
+  @@map("budget_pacing_snapshots")
+}
+
+model WhatsAppCampaign {
+  id             String   @id @default(uuid())
+  clientId       String
+  campaignId     String   @unique
+  metaCampaignId String   @unique
+  campaignName   String
+  waPhoneNumber  String?  @db.VarChar(50)
+  waDisplayName  String?
+  trackingMethod String   @default("click_to_wa")
+  status         String   @default("active") // active | paused | archived
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@map("whatsapp_campaigns")
+}
+
+// ─────────────────────────────────────────
+// GROUP 5: INTELLIGENCE LAYER
+// ─────────────────────────────────────────
+
+model CreativeAnalysis {
+  id                 String   @id @default(uuid())
+  clientId           String
+  creativeId         String   @unique
+  textScore          Decimal? @db.Decimal(4, 2)
+  imageScore         Decimal? @db.Decimal(4, 2)
+  overallScore       Decimal? @db.Decimal(4, 2)
+  hookStrength       Decimal? @db.Decimal(4, 2)
+  ctaClarity         Decimal? @db.Decimal(4, 2)
+  urgencyScore       Decimal? @db.Decimal(4, 2)
+  humanPresence      Boolean?
+  textOverlayDensity String?
+  visualClutter      Decimal? @db.Decimal(4, 2)
+  strengths          Json?
+  weaknesses         Json?
+  hypotheses         Json?
+  rewriteSuggestions Json?
+  analyzedAt         DateTime @default(now())
+  modelUsed          String?
+
+  creative AdCreative @relation(fields: [creativeId], references: [id], onDelete: Cascade)
+
+  @@map("creative_analysis")
+}
+
+model CreativeFatigueSignal {
+  id           String   @id @default(uuid())
+  clientId     String
+  creativeId   String
+  campaignId   String
+  signalDate   DateTime @db.Date
+  frequency    Decimal? @db.Decimal(10, 4)
+  ctr7dAvg     Decimal? @db.Decimal(10, 6)
+  ctrPrev7dAvg Decimal? @db.Decimal(10, 6)
+  ctrDropPct   Decimal? @db.Decimal(10, 4)
+  cpl7dAvg     Decimal? @db.Decimal(18, 4)
+  cplPrev7dAvg Decimal? @db.Decimal(18, 4)
+  fatigueScore Decimal? @db.Decimal(5, 2)
+  fatigueLevel String   @default("none")
+  alertSent    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  creative AdCreative @relation(fields: [creativeId], references: [id], onDelete: Cascade)
+
+  @@index([creativeId, signalDate])
+  @@index([clientId, fatigueLevel])
+  @@map("creative_fatigue_signals")
+}
+
+model Recommendation {
+  id             String    @id @default(uuid())
+  clientId       String
+  entityLevel    String
+  entityId       String
+  ruleId         String?
+  source         String
+  severity       String
+  title          String
+  evidenceJson   Json
+  suggestion     String    @db.Text
+  expectedEffect String?   @db.Text
+  status         String    @default("active")
+  generatedAt    DateTime  @default(now())
+  dismissedAt    DateTime?
+  dismissedBy    String?
+
+  @@index([clientId, severity, generatedAt])
+  @@index([entityId, status])
+  @@map("recommendations")
+}
+
+model Alert {
+  id          String    @id @default(uuid())
+  clientId    String
+  alertType   String
+  severity    String
+  title       String
+  message     String    @db.Text
+  entityId    String?
+  entityLevel String?
+  status      String    @default("active")
+  resolvedAt  DateTime?
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+
+  @@index([clientId, status, createdAt])
+  @@map("alerts")
+}
+
+model InstantAlert {
+  id        String    @id @default(uuid())
+  clientId  String
+  alertType String
+  severity  String
+  title     String
+  message   String    @db.Text
+  channel   String    @default("all")
+  status    String    @default("pending")
+  sentAt    DateTime?
+  errorMsg  String?   @db.Text
+  metadata  Json?
+  createdAt DateTime  @default(now())
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, status, createdAt])
+  @@map("instant_alerts")
+}
+
+model AlertRecipient {
+  id          String   @id @default(uuid())
+  clientId    String
+  channel     String
+  identifier  String
+  displayName String?
+  isActive    Boolean  @default(true)
+  alertTypes  Json?
+  createdAt   DateTime @default(now())
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, channel, identifier])
+  @@map("alert_recipients")
+}
+
+// ─────────────────────────────────────────
+// GROUP 6: COMPETITOR INTELLIGENCE
+// ─────────────────────────────────────────
+
+model CompetitorProfile {
+  id             String    @id @default(uuid())
+  clientId       String
+  competitorName String
+  metaPageId     String?
+  metaPageName   String?
+  isActive       Boolean   @default(true)
+  notes          String?   @db.Text
+  lastSyncedAt   DateTime?
+  createdAt      DateTime  @default(now())
+
+  client      Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  adSnapshots CompetitorAdSnapshot[]
+
+  @@map("competitor_profiles")
+}
+
+model CompetitorAdSnapshot {
+  id                       String    @id @default(uuid())
+  competitorId             String
+  clientId                 String
+  metaAdId                 String?
+  adCreativeBody           String?   @db.Text
+  adCreativeTitle          String?   @db.VarChar(500)
+  ctaType                  String?
+  publisherPlatforms       Json?
+  adDeliveryStartTime      DateTime?
+  adDeliveryStopTime       DateTime?
+  isActive                 Boolean   @default(true)
+  mediaType                String?
+  estimatedSpendRange      String?
+  estimatedImpressionRange String?
+  adSnapshotUrl            String?   @db.VarChar(1000)
+  rawPayload               Json?
+  firstSeenAt              DateTime
+  lastSeenAt               DateTime
+  createdAt                DateTime  @default(now())
+
+  competitor CompetitorProfile @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+
+  @@index([competitorId, lastSeenAt])
+  @@map("competitor_ad_snapshots")
+}
+
+// ─────────────────────────────────────────
+// GROUP 7: COLLABORATION
+// ─────────────────────────────────────────
+
+model CampaignNote {
+  id         String   @id @default(uuid())
+  clientId   String
+  entityType String
+  entityId   String
+  authorId   String
+  content    String   @db.Text
+  isPinned   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id])
+
+  @@index([entityType, entityId])
+  @@map("campaign_notes")
+}
+
+model SharedDashboardLink {
+  id        String   @id @default(uuid())
+  clientId  String
+  createdBy String
+  token     String   @unique @db.Char(64)
+  label     String?
+  dateRange Json
+  scope     Json
+  expiresAt DateTime
+  viewCount Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  client        Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdByUser User   @relation(fields: [createdBy], references: [id])
+
+  @@map("shared_dashboard_links")
+}
+
+// ─────────────────────────────────────────
+// GROUP 8: OPERATIONAL
+// ─────────────────────────────────────────
+
+model SyncJob {
+  id           String    @id @default(uuid())
+  clientId     String?
+  jobType      String
+  status       String    @default("queued")
+  priority     Int       @default(5)
+  scheduledFor DateTime
+  startedAt    DateTime?
+  completedAt  DateTime?
+  maxAttempts  Int       @default(3)
+  attemptCount Int       @default(0)
+  errorMessage String?   @db.Text
+  metadata     Json?
+  createdAt    DateTime  @default(now())
+
+  @@index([status, scheduledFor])
+  @@map("sync_jobs")
+}
+
+model SyncRun {
+  id                String    @id @default(uuid())
+  syncJobId         String
+  clientId          String?
+  jobType           String
+  status            String
+  startedAt         DateTime
+  completedAt       DateTime?
+  durationMs        Int?
+  entitiesProcessed Int?
+  errorMessage      String?   @db.Text
+  metadata          Json?
+
+  @@map("sync_runs")
+}
+
+model Report {
+  id             String    @id @default(uuid())
+  clientId       String
+  reportType     String
+  dateRangeJson  Json
+  status         String    @default("generating")
+  generatedAt    DateTime?
+  sentAt         DateTime?
+  recipientCount Int?
+  errorMessage   String?   @db.Text
+  htmlContent    String?   @db.LongText
+  summaryJson    Json?
+  createdAt      DateTime  @default(now())
+
+  @@map("reports")
+}
+
+model ReportRecipient {
+  id          String   @id @default(uuid())
+  clientId    String
+  email       String
+  name        String?
+  isActive    Boolean  @default(true)
+  reportTypes Json?
+  createdAt   DateTime @default(now())
+
+  @@map("report_recipients")
+}
+
+model SavedComparison {
+  id            String   @id @default(uuid())
+  clientId      String
+  name          String
+  filterPayload Json
+  createdBy     String
+  createdAt     DateTime @default(now())
+
+  @@map("saved_comparisons")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  eventType   String
+  userId      String?
+  clientId    String?
+  entityRefId String?
+  eventScope  String?
+  ipAddress   String?
+  userAgent   String?  @db.VarChar(500)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([clientId, createdAt])
+  @@index([userId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("audit_logs")
+}
