@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { use } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import NotesPanel from "@/components/notes/NotesPanel";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -417,6 +418,14 @@ export default function CreativeDetailPage({
           )}
         </div>
       </div>
+
+      {/* Notes */}
+      <NotesPanel
+        clientId={clientId}
+        entityType="creative"
+        entityId={creativeId}
+        title="Creative Notes"
+      />
     </div>
   );
 }
