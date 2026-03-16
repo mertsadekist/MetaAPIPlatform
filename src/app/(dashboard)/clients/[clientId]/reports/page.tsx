@@ -86,6 +86,10 @@ export default function ReportsPage({ params }: { params: Promise<{ clientId: st
     }
   }
 
+  function downloadReport(reportId: string) {
+    window.location.href = `/api/reports/${reportId}/download`;
+  }
+
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-bold">Reports</h1>
@@ -181,12 +185,21 @@ export default function ReportsPage({ params }: { params: Promise<{ clientId: st
                   </td>
                   <td className="px-4 py-3 text-right">
                     {r.status === "completed" && (
-                      <button
-                        onClick={() => viewReport(r.id)}
-                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                      >
-                        View →
-                      </button>
+                      <div className="flex items-center justify-end gap-3">
+                        <button
+                          onClick={() => viewReport(r.id)}
+                          className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          View →
+                        </button>
+                        <button
+                          onClick={() => downloadReport(r.id)}
+                          className="text-xs text-gray-500 hover:text-gray-700 font-medium"
+                          title="Download HTML"
+                        >
+                          ↓ Download
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>
