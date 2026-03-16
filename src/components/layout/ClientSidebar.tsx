@@ -15,6 +15,7 @@ import {
   Bell,
   Settings,
   LogOut,
+  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +26,7 @@ function navItems(clientId: string) {
     { href: `/clients/${clientId}/creatives`, label: "Creatives", icon: Image },
     { href: `/clients/${clientId}/leads`, label: "Leads & Quality", icon: Users },
     { href: `/clients/${clientId}/whatsapp`, label: "WhatsApp", icon: MessageCircle },
+    { href: `/clients/${clientId}/budget`, label: "Budget & Pacing", icon: Wallet },
     { href: `/clients/${clientId}/competitors`, label: "Competitors", icon: Search },
     { href: `/clients/${clientId}/comparisons`, label: "Comparisons", icon: GitCompare },
     { href: `/clients/${clientId}/reports`, label: "Reports", icon: FileText },
