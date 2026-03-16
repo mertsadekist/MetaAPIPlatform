@@ -87,12 +87,12 @@ export function ClientSidebar({ clientId, clientName, username }: ClientSidebarP
       {/* User */}
       <div className="px-3 py-4 border-t border-gray-700">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+          <Link href="/profile" className="flex items-center gap-2 min-w-0 group">
+            <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 group-hover:bg-blue-500 transition-colors">
               <span className="text-xs font-medium text-white uppercase">{username[0]}</span>
             </div>
-            <span className="text-sm text-gray-300 truncate">{username}</span>
-          </div>
+            <span className="text-sm text-gray-300 truncate group-hover:text-white transition-colors">{username}</span>
+          </Link>
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
             className="text-gray-400 hover:text-white transition-colors p-1"

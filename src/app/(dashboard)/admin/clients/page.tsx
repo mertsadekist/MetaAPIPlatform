@@ -106,18 +106,18 @@ export default async function ClientsPage() {
                       {client.isActive ? "Active" : "Inactive"}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-6 py-4 text-right space-x-4">
                     <Link
-                      href={`/clients/${client.id}/overview`}
-                      className="text-sm text-blue-600 hover:text-blue-700 font-medium mr-4"
+                      href={`/admin/clients/${client.id}`}
+                      className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                     >
-                      View
+                      Manage
                     </Link>
                     <Link
-                      href={`/admin/clients/${client.id}/kpi-targets`}
+                      href={`/clients/${client.id}/overview`}
                       className="text-sm text-gray-500 hover:text-gray-700"
                     >
-                      KPI Targets
+                      Portal
                     </Link>
                   </td>
                 </tr>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { use } from "react";
+import { Download } from "lucide-react";
 
 interface Lead {
   id: string;
@@ -79,8 +80,18 @@ export default function LeadsPage({ params }: { params: Promise<{ clientId: stri
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold">Leads & Quality</h1>
-        <span className="text-sm text-gray-500">{total.toLocaleString()} total leads</span>
+        <div>
+          <h1 className="text-2xl font-bold">Leads & Quality</h1>
+          <span className="text-sm text-gray-500">{total.toLocaleString()} total leads</span>
+        </div>
+        <a
+          href={`/api/leads/export?clientId=${clientId}${statusFilter !== "all" ? `&status=${statusFilter}` : ""}`}
+          className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          download
+        >
+          <Download className="w-4 h-4" />
+          Export CSV
+        </a>
       </div>
 
       {/* Status filter pills */}
