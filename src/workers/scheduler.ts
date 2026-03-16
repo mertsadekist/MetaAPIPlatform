@@ -12,6 +12,7 @@ import { runDailyReconcile } from "./jobs/daily-reconcile";
 import { runBudgetPacing } from "./jobs/budget-pacing";
 import { runCreativeFatigue } from "./jobs/creative-fatigue";
 import { runCreativeAnalysis } from "./jobs/creative-analysis";
+import { runAlertDispatcher } from "./jobs/alert-dispatcher";
 
 type JobType =
   | "asset_discovery"
@@ -19,16 +20,21 @@ type JobType =
   | "daily_reconcile"
   | "budget_pacing"
   | "creative_fatigue"
-  | "creative_analysis";
+  | "creative_analysis"
+  | "alert_dispatch";
 
 const JOB_INTERVALS: Record<JobType, number> = {
-  asset_discovery:   6 * 60 * 60 * 1000,   // 6 hours
-  hourly_sync:       60 * 60 * 1000,        // 1 hour
-  daily_reconcile:   24 * 60 * 60 * 1000,   // 24 hours
-  budget_pacing:     60 * 60 * 1000,        // 1 hour
-  creative_fatigue:  24 * 60 * 60 * 1000,   // 24 hours
-  creative_analysis: 24 * 60 * 60 * 1000,   // 24 hours
+  asset_discovery:   6 * 60 * 60 * 1000,    // 6 hours
+  hourly_sync:       60 * 60 * 1000,         // 1 hour
+  daily_reconcile:   24 * 60 * 60 * 1000,    // 24 hours
+  budget_pacing:     60 * 60 * 1000,         // 1 hour
+  creative_fatigue:  24 * 60 * 60 * 1000,    // 24 hours
+  creative_analysis: 24 * 60 * 60 * 1000,    // 24 hours
+  alert_dispatch:    15 * 60 * 1000,         // 15 minutes
 };
+
+// Jobs that run globally (no clientId needed)
+const GLOBAL_JOBS = new Set<JobType>(["alert_dispatch"]);
 
 async function executeJob(jobId: string, jobType: string, clientId: string | null) {
   const log = logger.child({ jobId, jobType, clientId });
@@ -54,8 +60,17 @@ async function executeJob(jobId: string, jobType: string, clientId: string | nul
   try {
     let result = { success: false, itemsProcessed: 0, errors: [] as string[] };
 
-    if (clientId) {
-      switch (jobType as JobType) {
+    const type = jobType as JobType;
+
+    if (GLOBAL_JOBS.has(type)) {
+      // Global jobs run regardless of clientId
+      switch (type) {
+        case "alert_dispatch":
+          result = await runAlertDispatcher();
+          break;
+      }
+    } else if (clientId) {
+      switch (type) {
         case "asset_discovery":
           result = await runAssetDiscovery(clientId);
           break;
@@ -155,10 +170,11 @@ export async function processNextJob(): Promise<void> {
 
 /**
  * Queue a job for immediate execution.
+ * Pass clientId as null for global jobs (e.g. alert_dispatch).
  */
 export async function queueJob(
   jobType: JobType,
-  clientId: string,
+  clientId: string | null,
   scheduledFor?: Date
 ): Promise<string> {
   const job = await prisma.syncJob.create({
@@ -171,4 +187,25 @@ export async function queueJob(
     },
   });
   return job.id;
+}
+
+/**
+ * Ensure the global alert_dispatch job is seeded in the DB.
+ * Call once at app startup.
+ */
+export async function seedGlobalJobs(): Promise<void> {
+  const existing = await prisma.syncJob.findFirst({
+    where: { jobType: "alert_dispatch", status: "queued" },
+  });
+  if (!existing) {
+    await prisma.syncJob.create({
+      data: {
+        clientId: null,
+        jobType: "alert_dispatch",
+        status: "queued",
+        scheduledFor: new Date(),
+      },
+    });
+    logger.info("Seeded global alert_dispatch job");
+  }
 }

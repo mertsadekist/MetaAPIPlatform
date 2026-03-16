@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { use } from "react";
 import { KpiCard } from "@/components/cards/KpiCard";
+import NotesPanel from "@/components/notes/NotesPanel";
 import {
   LineChart,
   Line,
@@ -184,6 +185,14 @@ export default function OverviewPage({ params }: { params: Promise<{ clientId: s
               </div>
             )}
           </div>
+
+          {/* Client-level notes */}
+          <NotesPanel
+            clientId={clientId}
+            entityType="client"
+            entityId={clientId}
+            title="Client Notes"
+          />
         </>
       )}
     </div>
