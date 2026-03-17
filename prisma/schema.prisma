@@ -126,6 +126,7 @@ model AdAccount {
   timezone          String    @default("UTC")
   effectiveStatus   String?
   isActive          Boolean   @default(true)
+  isAssigned        Boolean   @default(true)
   rawPayload        Json?
   lastSyncedAt      DateTime?
 

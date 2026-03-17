@@ -39,6 +39,7 @@ interface AdAccount {
   currency: string;
   timezone: string;
   isActive: boolean;
+  isAssigned: boolean;
   effectiveStatus: string | null;
   lastSyncedAt: string | null;
   businessManager: { id: string; name: string; metaBusinessId: string } | null;
@@ -203,6 +204,21 @@ export default function MetaConnectionsPage() {
       setError("Network error during discovery");
     } finally {
       setDiscoverLoading(false);
+    }
+  }
+
+  async function handleToggleAssign(accountId: string, current: boolean) {
+    const res = await fetch("/api/meta/ad-accounts", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accountId, isAssigned: !current }),
+    });
+    if (res.ok) {
+      setAdAccounts((prev) =>
+        prev.map((a) => (a.id === accountId ? { ...a, isAssigned: !current } : a))
+      );
+    } else {
+      setError("Failed to update account assignment");
     }
   }
 
@@ -749,6 +765,7 @@ export default function MetaConnectionsPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Assigned</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Ad Account ID</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Business Manager</th>
@@ -759,7 +776,20 @@ export default function MetaConnectionsPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {adAccounts.map((account) => (
-                      <tr key={account.id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={account.id} className={`transition-colors ${account.isAssigned ? "hover:bg-gray-50" : "bg-gray-50 opacity-60 hover:opacity-80"}`}>
+                        <td className="px-6 py-4">
+                          <button
+                            onClick={() => handleToggleAssign(account.id, account.isAssigned)}
+                            title={account.isAssigned ? "Click to unassign this account" : "Click to assign this account"}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                              account.isAssigned ? "bg-blue-600" : "bg-gray-300"
+                            }`}
+                          >
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                              account.isAssigned ? "translate-x-6" : "translate-x-1"
+                            }`} />
+                          </button>
+                        </td>
                         <td className="px-6 py-4">
                           <code className="text-xs font-mono text-gray-600 bg-gray-100 px-2 py-1 rounded-lg">
                             act_{account.metaAdAccountId}
