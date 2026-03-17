@@ -30,7 +30,7 @@ export async function runBudgetPacing(clientId: string): Promise<JobResult> {
   const monthYear = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   const adAccounts = await prisma.adAccount.findMany({
-    where: { clientId, isActive: true },
+    where: { clientId, isActive: true, isAssigned: true },
   });
 
   for (const account of adAccounts) {

@@ -9,6 +9,7 @@ interface Campaign {
   name: string;
   objective: string | null;
   effectiveStatus: string | null;
+  adAccount: { name: string; currency: string } | null;
   metrics: { spend: number; leads: number; clicks: number; impressions: number; cpl: number | null };
 }
 
@@ -70,9 +71,15 @@ export default function CampaignsPage({ params }: { params: Promise<{ clientId: 
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-600 text-xs">{c.objective ?? "—"}</td>
-                  <td className="px-4 py-3 text-right font-medium">${c.metrics.spend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                  <td className="px-4 py-3 text-right font-medium">
+                    {new Intl.NumberFormat("en-US", { style: "currency", currency: c.adAccount?.currency ?? "USD", maximumFractionDigits: 0 }).format(c.metrics.spend)}
+                  </td>
                   <td className="px-4 py-3 text-right">{c.metrics.leads.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-right">{c.metrics.cpl != null ? `$${c.metrics.cpl.toFixed(2)}` : "—"}</td>
+                  <td className="px-4 py-3 text-right">
+                    {c.metrics.cpl != null
+                      ? new Intl.NumberFormat("en-US", { style: "currency", currency: c.adAccount?.currency ?? "USD", maximumFractionDigits: 2 }).format(c.metrics.cpl)
+                      : "—"}
+                  </td>
                   <td className="px-4 py-3 text-right text-gray-600">
                     {c.metrics.impressions > 0
                       ? `${((c.metrics.clicks / c.metrics.impressions) * 100).toFixed(2)}%`

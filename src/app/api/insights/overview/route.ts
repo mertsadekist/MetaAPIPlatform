@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireClientAccess, handleAuthError } from "@/lib/auth/guards";
 import { getClientOverview, resolveDateRange, type PresetRange } from "@/modules/insights/insights.service";
+import prisma from "@/lib/db/client";
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,8 +19,16 @@ export async function GET(req: NextRequest) {
       ? { since: new Date(since), until: new Date(until) }
       : resolveDateRange(preset);
 
-    const overview = await getClientOverview(clientId, range);
-    return Response.json({ overview });
+    const [overview, assignedAccount] = await Promise.all([
+      getClientOverview(clientId, range),
+      prisma.adAccount.findFirst({
+        where: { clientId, isAssigned: true },
+        select: { currency: true },
+        orderBy: { name: "asc" },
+      }),
+    ]);
+    const currency = assignedAccount?.currency ?? "USD";
+    return Response.json({ overview: { ...overview, currency } });
   } catch (e) {
     return handleAuthError(e);
   }

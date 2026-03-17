@@ -2,6 +2,29 @@ import { NextRequest } from "next/server";
 import { requirePermission, handleAuthError } from "@/lib/auth/guards";
 import prisma from "@/lib/db/client";
 
+export async function PATCH(req: NextRequest) {
+  try {
+    await requirePermission("MANAGE_META_CONNECTIONS");
+    const { assignments } = await req.json() as {
+      assignments: { accountId: string; isAssigned: boolean }[];
+    };
+
+    if (!Array.isArray(assignments) || assignments.length === 0) {
+      return Response.json({ error: "assignments array required" }, { status: 400 });
+    }
+
+    await prisma.$transaction(
+      assignments.map(({ accountId, isAssigned }) =>
+        prisma.adAccount.update({ where: { id: accountId }, data: { isAssigned } })
+      )
+    );
+
+    return Response.json({ updated: assignments.length });
+  } catch (e) {
+    return handleAuthError(e);
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     await requirePermission("MANAGE_META_CONNECTIONS");

@@ -15,6 +15,7 @@ import {
   LayoutGrid,
   AlertTriangle,
   Info,
+  Save,
 } from "lucide-react";
 
 interface Connection {
@@ -64,6 +65,8 @@ export default function MetaConnectionsPage() {
   const [adAccountsLoading, setAdAccountsLoading] = useState(false);
   const [showAdAccounts, setShowAdAccounts] = useState(false);
   const [discoverLoading, setDiscoverLoading] = useState(false);
+  const [pendingAssignments, setPendingAssignments] = useState<Map<string, boolean>>(new Map());
+  const [saving, setSaving] = useState(false);
 
   const [form, setForm] = useState({
     connectionName: "",
@@ -95,6 +98,7 @@ export default function MetaConnectionsPage() {
     if (!selectedClientId) return;
     setAdAccountsLoading(true);
     setShowAdAccounts(true);
+    setPendingAssignments(new Map());
     const res = await fetch(`/api/admin/ad-accounts?clientId=${selectedClientId}`);
     const data = await res.json();
     setAdAccounts(data.adAccounts ?? []);
@@ -207,19 +211,34 @@ export default function MetaConnectionsPage() {
     }
   }
 
-  async function handleToggleAssign(accountId: string, current: boolean) {
-    const res = await fetch("/api/meta/ad-accounts", {
+  function handleToggleAssign(accountId: string, current: boolean) {
+    const newValue = !current;
+    setPendingAssignments((prev) => new Map(prev).set(accountId, newValue));
+    setAdAccounts((prev) =>
+      prev.map((a) => (a.id === accountId ? { ...a, isAssigned: newValue } : a))
+    );
+  }
+
+  async function handleSaveAssignments() {
+    if (pendingAssignments.size === 0) return;
+    setSaving(true);
+    setError("");
+    const assignments = Array.from(pendingAssignments.entries()).map(([accountId, isAssigned]) => ({
+      accountId,
+      isAssigned,
+    }));
+    const res = await fetch("/api/admin/ad-accounts", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accountId, isAssigned: !current }),
+      body: JSON.stringify({ assignments }),
     });
     if (res.ok) {
-      setAdAccounts((prev) =>
-        prev.map((a) => (a.id === accountId ? { ...a, isAssigned: !current } : a))
-      );
+      setPendingAssignments(new Map());
+      setSuccessMsg(`Saved — ${assignments.length} account${assignments.length !== 1 ? "s" : ""} updated.`);
     } else {
-      setError("Failed to update account assignment");
+      setError("Failed to save assignments");
     }
+    setSaving(false);
   }
 
   async function handleReactivate(connectionId: string) {
@@ -312,6 +331,7 @@ export default function MetaConnectionsPage() {
                   setSelectedClientId(e.target.value);
                   setShowAdAccounts(false);
                   setAdAccounts([]);
+                  setPendingAssignments(new Map());
                   setSuccessMsg("");
                   setError("");
                 }}
@@ -734,13 +754,32 @@ export default function MetaConnectionsPage() {
                   </p>
                 )}
               </div>
-              <button
-                onClick={loadAdAccounts}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                Refresh
-              </button>
+              <div className="flex items-center gap-2">
+                {pendingAssignments.size > 0 && (
+                  <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
+                    {pendingAssignments.size} unsaved change{pendingAssignments.size !== 1 ? "s" : ""}
+                  </span>
+                )}
+                <button
+                  onClick={handleSaveAssignments}
+                  disabled={saving || pendingAssignments.size === 0}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  {saving ? (
+                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Save className="w-3.5 h-3.5" />
+                  )}
+                  {saving ? "Saving…" : "Save Assignments"}
+                </button>
+                <button
+                  onClick={loadAdAccounts}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Refresh
+                </button>
+              </div>
             </div>
 
             {adAccountsLoading ? (

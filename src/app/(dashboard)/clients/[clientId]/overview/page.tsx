@@ -33,6 +33,7 @@ interface Overview {
   ctr: number;
   cpm: number;
   messagesStarted: number;
+  currency: string;
   deltas: { spend: number | null; leads: number | null; cpl: number | null };
   pacing?: {
     pacingStatus: string;
@@ -82,6 +83,9 @@ export default function OverviewPage({ params }: { params: Promise<{ clientId: s
     unknown: { label: "—", color: "text-gray-500 bg-gray-50" },
   };
   const pacingBadge = pacing ? statusBadge[pacing.pacingStatus] ?? statusBadge.unknown : null;
+  const currency = overview?.currency ?? "USD";
+  const fmtCurrency = (n: number, decimals = 0) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: decimals }).format(n);
 
   return (
     <div className="p-6 space-y-6 max-w-7xl">
@@ -134,12 +138,12 @@ export default function OverviewPage({ params }: { params: Promise<{ clientId: s
           )}
           <div className="flex items-center gap-4 text-xs text-gray-500 mt-1">
             <span>
-              Spent: ${Number(pacing.spentToDate).toLocaleString()}
-              {pacing.monthBudget ? ` of $${Number(pacing.monthBudget).toLocaleString()}` : ""}
+              Spent: {fmtCurrency(Number(pacing.spentToDate))}
+              {pacing.monthBudget ? ` of ${fmtCurrency(Number(pacing.monthBudget))}` : ""}
               {pacingPercent !== null ? ` (${pacingPercent}%)` : ""}
             </span>
             <span>Day {pacing.daysElapsed} of {pacing.daysElapsed + pacing.daysRemaining}</span>
-            <span>Projected EOM: ${Number(pacing.projectedSpend).toLocaleString()}</span>
+            <span>Projected EOM: {fmtCurrency(Number(pacing.projectedSpend))}</span>
           </div>
         </div>
       )}
@@ -154,14 +158,14 @@ export default function OverviewPage({ params }: { params: Promise<{ clientId: s
         <>
           {/* KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <KpiCard label="Spend" value={overview?.spend ?? null} format="currency" delta={overview?.deltas.spend} />
+            <KpiCard label="Spend" value={overview?.spend ?? null} format="currency" currency={currency} delta={overview?.deltas.spend} />
             <KpiCard label="Leads" value={overview?.leads ?? null} format="number" delta={overview?.deltas.leads} />
-            <KpiCard label="CPL" value={overview?.cpl ?? null} format="currency" delta={overview?.deltas.cpl} isPositiveWhenUp={false} />
+            <KpiCard label="CPL" value={overview?.cpl ?? null} format="currency" currency={currency} delta={overview?.deltas.cpl} isPositiveWhenUp={false} />
             <KpiCard label="ROAS" value={overview?.roas ?? null} format="multiplier" />
             <KpiCard label="Impressions" value={overview?.impressions ?? null} format="number" />
             <KpiCard label="Clicks" value={overview?.clicks ?? null} format="number" />
             <KpiCard label="CTR" value={overview?.ctr != null ? overview.ctr * 100 : null} format="percent" />
-            <KpiCard label="CPM" value={overview?.cpm ?? null} format="currency" isPositiveWhenUp={false} />
+            <KpiCard label="CPM" value={overview?.cpm ?? null} format="currency" currency={currency} isPositiveWhenUp={false} />
           </div>
 
           {/* Spend Trend Chart */}
@@ -174,7 +178,7 @@ export default function OverviewPage({ params }: { params: Promise<{ clientId: s
                   <XAxis dataKey="date" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip
-                    formatter={(v) => [`$${Number(v).toFixed(2)}`, "Spend"]}
+                    formatter={(v) => [fmtCurrency(Number(v), 2), "Spend"]}
                   />
                   <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} dot={false} />
                 </LineChart>

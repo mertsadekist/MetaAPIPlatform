@@ -50,7 +50,7 @@ export async function runDailyReconcile(clientId: string): Promise<JobResult> {
   });
 
   const adAccounts = await prisma.adAccount.findMany({
-    where: { clientId, isActive: true },
+    where: { clientId, isActive: true, isAssigned: true },
   });
 
   if (adAccounts.length === 0 || connections.length === 0) {
