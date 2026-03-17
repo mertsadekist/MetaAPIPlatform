@@ -366,7 +366,7 @@ export default function MetaConnectionsPage() {
                     bg: "bg-blue-50",
                     border: "border-blue-100",
                     title: "Connect Facebook",
-                    desc: "Click 'Connect with Facebook' — a popup opens, you log in and grant ads_read, leads_retrieval, and pages_show_list permissions.",
+                    desc: "Click 'Connect with Facebook' — a popup opens, you log in and grant ads_read, ads_management, business_management, and pages_show_list permissions.",
                   },
                   {
                     step: "03",

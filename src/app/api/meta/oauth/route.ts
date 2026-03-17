@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       "ads_read",
       "ads_management",
       "business_management",
-      "leads_retrieval",
+      "pages_show_list",
       "pages_read_engagement",
     ].join(",");
 
