@@ -353,10 +353,21 @@ export async function runAssetDiscovery(clientId: string): Promise<JobResult> {
       errors.push(msg);
       log.error({ connectionId: conn.id, error: String(e) }, "Asset discovery error");
 
-      await prisma.metaConnection.update({
-        where: { id: conn.id },
-        data: { status: "error" },
-      });
+      // Only mark as "error" for auth failures (code 190 / OAuthException).
+      // Rate-limit errors (code 17) and other transient failures are temporary —
+      // leave the connection active so the next scheduled run can retry.
+      const isAuthError =
+        e instanceof Error &&
+        "code" in e &&
+        ((e as { code: number }).code === 190 ||
+          ("type" in e && (e as { type: string }).type === "OAuthException"));
+
+      if (isAuthError) {
+        await prisma.metaConnection.update({
+          where: { id: conn.id },
+          data: { status: "error" },
+        });
+      }
     }
   }
 

@@ -97,9 +97,11 @@ export class MetaService {
       });
       return { valid: true, scopes: info.scopes };
     } catch (e) {
+      // Only mark as "error" for auth failures; leave "active" for transient issues
+      const isAuthFailure = e instanceof MetaError && e.isAuthError;
       await prisma.metaConnection.update({
         where: { id: connectionId },
-        data: { status: e instanceof MetaError && e.isAuthError ? "error" : "error" },
+        data: { status: isAuthFailure ? "error" : "active" },
       });
       return { valid: false, error: String(e) };
     }

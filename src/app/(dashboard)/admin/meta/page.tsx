@@ -6,6 +6,7 @@ import {
   RefreshCw,
   Plus,
   Trash2,
+  RotateCcw,
   ChevronRight,
   CheckCircle2,
   XCircle,
@@ -203,6 +204,19 @@ export default function MetaConnectionsPage() {
     } finally {
       setDiscoverLoading(false);
     }
+  }
+
+  async function handleReactivate(connectionId: string) {
+    setError("");
+    setSuccessMsg("");
+    const res = await fetch(`/api/meta/connections/${connectionId}`, { method: "POST" });
+    const data = await res.json();
+    if (data.valid) {
+      setSuccessMsg("Connection reactivated successfully.");
+    } else {
+      setError(`Reactivation failed: ${data.error ?? "Unknown error"}`);
+    }
+    await loadConnections(selectedClientId);
   }
 
   async function handleDelete(connectionId: string) {
@@ -664,13 +678,24 @@ export default function MetaConnectionsPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <button
-                            onClick={() => handleDelete(conn.id)}
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                            title="Delete connection"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            {conn.status === "error" && (
+                              <button
+                                onClick={() => handleReactivate(conn.id)}
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                title="Reactivate connection"
+                              >
+                                <RotateCcw className="w-4 h-4" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleDelete(conn.id)}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                              title="Delete connection"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
