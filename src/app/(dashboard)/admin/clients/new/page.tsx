@@ -78,7 +78,7 @@ export default function NewClientPage() {
             value={form.displayName}
             onChange={(e) => setForm({ ...form, displayName: e.target.value })}
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="e.g. Acme Real Estate"
           />
         </div>
@@ -88,7 +88,7 @@ export default function NewClientPage() {
           <select
             value={form.industry}
             onChange={(e) => setForm({ ...form, industry: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Select industry...</option>
             {INDUSTRIES.map((ind) => (
@@ -103,7 +103,7 @@ export default function NewClientPage() {
             <select
               value={form.timezone}
               onChange={(e) => setForm({ ...form, timezone: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {TIMEZONES.map((tz) => (
                 <option key={tz} value={tz}>{tz}</option>
@@ -115,7 +115,7 @@ export default function NewClientPage() {
             <select
               value={form.currencyCode}
               onChange={(e) => setForm({ ...form, currencyCode: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="USD">USD</option>
               <option value="EUR">EUR</option>
@@ -135,7 +135,7 @@ export default function NewClientPage() {
             value={form.notes}
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-gray-900"
             placeholder="Optional internal notes..."
           />
         </div>

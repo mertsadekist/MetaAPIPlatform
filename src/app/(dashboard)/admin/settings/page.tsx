@@ -430,7 +430,7 @@ export default function AdminSettingsPage() {
                 value={testEmail}
                 onChange={(e) => setTestEmail(e.target.value)}
                 placeholder="recipient@example.com"
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <button
                 onClick={sendTestEmail}
@@ -536,7 +536,7 @@ export default function AdminSettingsPage() {
                 <select
                   value={triggerJobType}
                   onChange={(e) => setTriggerJobType(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   {Object.entries(JOB_LABELS).map(([v, l]) => (
                     <option key={v} value={v}>{l}</option>
@@ -550,7 +550,7 @@ export default function AdminSettingsPage() {
                   <select
                     value={triggerClientId}
                     onChange={(e) => setTriggerClientId(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">— Select client —</option>
                     {clients.map((c) => (

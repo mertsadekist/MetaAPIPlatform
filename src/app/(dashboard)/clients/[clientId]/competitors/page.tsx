@@ -121,7 +121,7 @@ export default function CompetitorsPage({ params }: { params: Promise<{ clientId
                 placeholder="e.g. Acme Corp"
                 value={form.competitorName}
                 onChange={(e) => setForm((f) => ({ ...f, competitorName: e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 bg-white"
               />
             </div>
             <div>
@@ -131,7 +131,7 @@ export default function CompetitorsPage({ params }: { params: Promise<{ clientId
                 placeholder="Facebook Page ID"
                 value={form.metaPageId}
                 onChange={(e) => setForm((f) => ({ ...f, metaPageId: e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 bg-white"
               />
             </div>
             <div>
@@ -141,7 +141,7 @@ export default function CompetitorsPage({ params }: { params: Promise<{ clientId
                 placeholder="@pagename"
                 value={form.metaPageName}
                 onChange={(e) => setForm((f) => ({ ...f, metaPageName: e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 bg-white"
               />
             </div>
             <div>
@@ -151,7 +151,7 @@ export default function CompetitorsPage({ params }: { params: Promise<{ clientId
                 placeholder="Any internal notes..."
                 value={form.notes}
                 onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 bg-white"
               />
             </div>
           </div>

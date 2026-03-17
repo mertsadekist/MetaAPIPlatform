@@ -212,14 +212,14 @@ export default function ComparisonsPage({ params }: { params: Promise<{ clientId
                 type="date"
                 value={periodA.since}
                 onChange={(e) => setPeriodA((p) => ({ ...p, since: e.target.value }))}
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700"
+                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white"
               />
               <span className="self-center text-gray-400 text-sm">→</span>
               <input
                 type="date"
                 value={periodA.until}
                 onChange={(e) => setPeriodA((p) => ({ ...p, until: e.target.value }))}
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700"
+                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white"
               />
             </div>
           </div>
@@ -250,14 +250,14 @@ export default function ComparisonsPage({ params }: { params: Promise<{ clientId
                 type="date"
                 value={periodB.since}
                 onChange={(e) => setPeriodB((p) => ({ ...p, since: e.target.value }))}
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700"
+                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white"
               />
               <span className="self-center text-gray-400 text-sm">→</span>
               <input
                 type="date"
                 value={periodB.until}
                 onChange={(e) => setPeriodB((p) => ({ ...p, until: e.target.value }))}
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700"
+                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white"
               />
             </div>
           </div>
@@ -342,7 +342,7 @@ export default function ComparisonsPage({ params }: { params: Promise<{ clientId
                 placeholder="Give this comparison a name…"
                 value={saveName}
                 onChange={(e) => setSaveName(e.target.value)}
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700"
+                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white"
               />
               <button
                 onClick={handleSave}

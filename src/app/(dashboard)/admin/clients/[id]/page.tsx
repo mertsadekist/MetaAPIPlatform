@@ -225,7 +225,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
               <select
                 value={addUserId}
                 onChange={(e) => setAddUserId(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               >
                 <option value="">— Select user to assign —</option>
                 {unassignedUsers.map((u) => (
@@ -240,7 +240,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
               <select
                 value={addAccessLevel}
                 onChange={(e) => setAddAccessLevel(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               >
                 <option value="full">Full Access</option>
                 <option value="read_only">Read Only</option>

@@ -103,7 +103,7 @@ export default function ReportsPage({ params }: { params: Promise<{ clientId: st
             <select
               value={form.reportType}
               onChange={(e) => setForm((f) => ({ ...f, reportType: e.target.value }))}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700"
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white"
             >
               {TYPE_OPTIONS.map((t) => (
                 <option key={t} value={t} className="capitalize">{t.charAt(0).toUpperCase() + t.slice(1)}</option>
@@ -116,7 +116,7 @@ export default function ReportsPage({ params }: { params: Promise<{ clientId: st
               type="date"
               value={form.since}
               onChange={(e) => setForm((f) => ({ ...f, since: e.target.value }))}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700"
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white"
             />
           </div>
           <div>
@@ -125,7 +125,7 @@ export default function ReportsPage({ params }: { params: Promise<{ clientId: st
               type="date"
               value={form.until}
               onChange={(e) => setForm((f) => ({ ...f, until: e.target.value }))}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700"
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white"
             />
           </div>
           <button
