@@ -13,6 +13,7 @@ export default auth((req) => {
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/health") ||
     pathname.startsWith("/shared/") ||
+    pathname.startsWith("/api/meta/oauth/callback") ||
     /^\/api\/shared-links\/[^/]+\/view$/.test(pathname)
   ) {
     return NextResponse.next();
