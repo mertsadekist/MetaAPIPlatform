@@ -178,18 +178,30 @@ export default function MetaConnectionsPage() {
   async function handleDiscover() {
     if (!selectedClientId) return;
     setDiscoverLoading(true);
-    const res = await fetch("/api/meta/discover", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId: selectedClientId }),
-    });
-    const data = await res.json();
-    setDiscoverLoading(false);
-    if (res.ok) {
-      setSuccessMsg(`Asset discovery queued (Job ID: ${data.jobId}). This may take a few minutes.`);
-      setTimeout(() => loadAdAccounts(), 3000);
-    } else {
-      setError(data.error ?? "Discovery failed");
+    setError("");
+    setSuccessMsg("");
+    try {
+      const res = await fetch("/api/meta/discover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: selectedClientId }),
+      });
+      const data = await res.json();
+      if (res.ok || res.status === 207) {
+        const count = data.itemsProcessed ?? 0;
+        if (res.status === 207 && data.errors?.length) {
+          setError(`Discovery completed with errors: ${data.errors.join("; ")}`);
+        } else {
+          setSuccessMsg(`Asset discovery complete — ${count} item${count !== 1 ? "s" : ""} synced.`);
+        }
+        await loadAdAccounts();
+      } else {
+        setError(data.error ?? data.message ?? "Discovery failed");
+      }
+    } catch (e) {
+      setError("Network error during discovery");
+    } finally {
+      setDiscoverLoading(false);
     }
   }
 
@@ -303,7 +315,7 @@ export default function MetaConnectionsPage() {
                   className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors"
                 >
                   <Layers className="w-4 h-4" />
-                  {discoverLoading ? "Queuing…" : "Discover Assets"}
+                  {discoverLoading ? "Discovering…" : "Discover Assets"}
                 </button>
 
                 <button

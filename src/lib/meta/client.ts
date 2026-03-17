@@ -173,6 +173,28 @@ export class MetaApiClient {
     );
   }
 
+  /** Fetch personal ad accounts directly under the user (/me/adaccounts) */
+  async getPersonalAdAccounts(): Promise<
+    Array<{
+      id: string;
+      name: string;
+      account_status: number;
+      currency: string;
+      timezone_name: string;
+      amount_spent: string;
+      balance: string;
+    }>
+  > {
+    try {
+      return this.fetchAll(
+        "/me/adaccounts",
+        { fields: "id,name,account_status,currency,timezone_name,amount_spent,balance" }
+      );
+    } catch {
+      return [];
+    }
+  }
+
   /** Fetch owned ad accounts for a business */
   async getAdAccounts(businessId: string): Promise<
     Array<{
@@ -192,6 +214,31 @@ export class MetaApiClient {
           "id,name,account_status,currency,timezone_name,amount_spent,balance",
       }
     );
+  }
+
+  /** Fetch client ad accounts for a business (accounts the BM has access to but doesn't own) */
+  async getClientAdAccounts(businessId: string): Promise<
+    Array<{
+      id: string;
+      name: string;
+      account_status: number;
+      currency: string;
+      timezone_name: string;
+      amount_spent: string;
+      balance: string;
+    }>
+  > {
+    try {
+      return this.fetchAll(
+        `/${businessId}/client_ad_accounts`,
+        {
+          fields:
+            "id,name,account_status,currency,timezone_name,amount_spent,balance",
+        }
+      );
+    } catch {
+      return [];
+    }
   }
 
   /** Fetch campaigns for an ad account */

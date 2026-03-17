@@ -42,8 +42,46 @@ export async function runAssetDiscovery(clientId: string): Promise<JobResult> {
       const token = decryptToken(conn.accessTokenHash);
       const api = new MetaApiClient(token);
 
+      // ── Personal Ad Accounts (no Business Manager needed) ──────
+      const personalAccounts = await api.getPersonalAdAccounts();
+      log.info({ count: personalAccounts.length }, "Personal ad accounts found");
+
+      // Ensure a placeholder BusinessManager row exists for personal accounts
+      let personalBmDbId: string | null = null;
+      if (personalAccounts.length > 0) {
+        const personalBmMetaId = `personal_${conn.id}`;
+        await prisma.businessManager.upsert({
+          where: { metaBusinessId: personalBmMetaId },
+          update: { name: "Personal Ad Accounts", isActive: true, lastSyncedAt: new Date() },
+          create: {
+            clientId,
+            metaBusinessId: personalBmMetaId,
+            name: "Personal Ad Accounts",
+            isActive: true,
+            lastSyncedAt: new Date(),
+          },
+        });
+        const personalBm = await prisma.businessManager.findUnique({
+          where: { metaBusinessId: personalBmMetaId },
+        });
+        personalBmDbId = personalBm?.id ?? null;
+      }
+
+      // Collect all ad accounts: personal + from all Business Managers
+      type RawAccount = {
+        id: string; name: string; account_status: number;
+        currency: string; timezone_name: string;
+        amount_spent: string; balance: string;
+      };
+      const allAccountSources: Array<{ bmDbId: string | null; acc: RawAccount }> = [];
+
+      for (const acc of personalAccounts) {
+        allAccountSources.push({ bmDbId: personalBmDbId, acc });
+      }
+
       // ── Business Managers ──────────────────────────────────────
       const businesses = await api.getBusinessManagers();
+      log.info({ count: businesses.length }, "Business managers found");
 
       for (const bm of businesses) {
         await prisma.businessManager.upsert({
@@ -63,10 +101,26 @@ export async function runAssetDiscovery(clientId: string): Promise<JobResult> {
         });
         if (!dbBm) continue;
 
-        // ── Ad Accounts ──────────────────────────────────────────
-        const accounts = await api.getAdAccounts(bm.id);
+        // Owned + client ad accounts for this BM
+        const [ownedAccounts, clientAccounts] = await Promise.all([
+          api.getAdAccounts(bm.id),
+          api.getClientAdAccounts(bm.id),
+        ]);
 
-        for (const acc of accounts) {
+        // Deduplicate by account id across owned + client
+        const seen = new Set<string>();
+        for (const acc of [...ownedAccounts, ...clientAccounts]) {
+          if (!seen.has(acc.id)) {
+            seen.add(acc.id);
+            allAccountSources.push({ bmDbId: dbBm.id, acc });
+          }
+        }
+      }
+
+      log.info({ total: allAccountSources.length }, "Total ad accounts to sync");
+
+      // ── Process all collected Ad Accounts ────────────────────
+      for (const { bmDbId, acc } of allAccountSources) {
           // Meta returns act_XXXXX — strip prefix for our ID field
           const rawId = acc.id.replace("act_", "");
           const metaAdAccountId = rawId;
@@ -84,7 +138,7 @@ export async function runAssetDiscovery(clientId: string): Promise<JobResult> {
             },
             create: {
               clientId,
-              businessManagerId: dbBm.id,
+              ...(bmDbId ? { businessManagerId: bmDbId } : {}),
               metaAdAccountId,
               name: acc.name,
               currency: acc.currency,
@@ -294,7 +348,6 @@ export async function runAssetDiscovery(clientId: string): Promise<JobResult> {
             }
           }
         }
-      }
     } catch (e) {
       const msg = `Connection ${conn.id}: ${String(e)}`;
       errors.push(msg);
