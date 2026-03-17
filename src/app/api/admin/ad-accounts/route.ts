@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
       currency: a.currency,
       timezone: a.timezone,
       isActive: a.isActive,
+      isAssigned: a.isAssigned,
       effectiveStatus: a.effectiveStatus,
       lastSyncedAt: a.lastSyncedAt,
       businessManager: a.businessManager
