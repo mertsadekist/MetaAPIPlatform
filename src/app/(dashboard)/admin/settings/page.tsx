@@ -184,7 +184,7 @@ export default function AdminSettingsPage() {
       if (settingsRes.ok) setData(await settingsRes.json());
       if (clientsRes.ok) {
         const d = await clientsRes.json();
-        setClients(d.clients ?? []);
+        setClients(Array.isArray(d) ? d : (d.clients ?? []));
       }
     } finally {
       setLoading(false);
