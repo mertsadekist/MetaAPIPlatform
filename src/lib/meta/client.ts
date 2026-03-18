@@ -90,8 +90,10 @@ export class MetaApiClient {
     const usage = this.parseRateLimitHeader(
       res.headers.get("x-app-usage")
     );
-    if (usage >= 75) {
-      const delay = Math.min(1000 * Math.pow(2, attempt), 60_000);
+    // Proactive throttle: slow down when approaching limit
+    if (usage >= 60) {
+      // Scale delay from 500ms at 60% up to 10s at 90%+
+      const delay = usage >= 90 ? 10_000 : usage >= 75 ? 3_000 : 500;
       logger.warn({ usage, delay }, "Meta API rate limit approaching, throttling");
       await new Promise((r) => setTimeout(r, delay));
     }
@@ -107,6 +109,13 @@ export class MetaApiClient {
         { code: err.code, type: err.type, message: err.message },
         "Meta API error"
       );
+
+      // Rate limit (code 17): do NOT retry — the window is ~1 hour, not seconds.
+      // Retrying wastes the remaining quota. Throw immediately so the caller
+      // can save whatever was already fetched and skip the rest gracefully.
+      if (err.code === 17) {
+        throw new MetaError(err.message, err.code, err.type, isRetryable, isAuth);
+      }
 
       if (isRetryable && attempt < 3) {
         const delay = Math.min(1000 * Math.pow(2, attempt), 60_000);
