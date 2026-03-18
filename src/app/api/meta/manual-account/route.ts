@@ -57,9 +57,9 @@ export async function POST(req: NextRequest) {
 
     const statusLabel =
       STATUS_MAP[account.account_status] ?? `STATUS_${account.account_status}`;
-    const normalizedId = metaAdAccountId.startsWith("act_")
-      ? metaAdAccountId
-      : `act_${metaAdAccountId}`;
+    // Strip act_ prefix for storage — consistent with asset-discovery.ts (line 79)
+    // getInsights/getCampaigns in client.ts add the prefix themselves
+    const normalizedId = metaAdAccountId.replace(/^act_/, "");
 
     if (action === "verify") {
       return NextResponse.json({
