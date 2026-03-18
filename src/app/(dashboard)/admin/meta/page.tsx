@@ -67,6 +67,7 @@ export default function MetaConnectionsPage() {
   const [discoverLoading, setDiscoverLoading] = useState(false);
   const [pendingAssignments, setPendingAssignments] = useState<Map<string, boolean>>(new Map());
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const [form, setForm] = useState({
     connectionName: "",
@@ -241,6 +242,30 @@ export default function MetaConnectionsPage() {
     setSaving(false);
   }
 
+  async function handleSyncNow() {
+    if (!selectedClientId) return;
+    setSyncing(true);
+    setError("");
+    setSuccessMsg("");
+    try {
+      const res = await fetch("/api/admin/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: selectedClientId, jobType: "hourly_sync" }),
+      });
+      if (res.ok) {
+        setSuccessMsg("Sync queued — data will update within 30 seconds.");
+      } else {
+        const data = await res.json();
+        setError(data.error ?? "Failed to queue sync job.");
+      }
+    } catch {
+      setError("Network error while queuing sync.");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   async function handleReactivate(connectionId: string) {
     setError("");
     setSuccessMsg("");
@@ -366,6 +391,15 @@ export default function MetaConnectionsPage() {
                 >
                   <Layers className="w-4 h-4" />
                   {discoverLoading ? "Discovering…" : "Discover Assets"}
+                </button>
+
+                <button
+                  onClick={handleSyncNow}
+                  disabled={syncing || connections.length === 0}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors"
+                >
+                  <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
+                  {syncing ? "Syncing…" : "Sync Now"}
                 </button>
 
                 <button
