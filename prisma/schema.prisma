@@ -30,10 +30,11 @@ model User {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  clientAccess  ClientUserAccess[]
-  auditLogs     AuditLog[]
-  campaignNotes CampaignNote[]
-  sharedLinks   SharedDashboardLink[]
+  clientAccess    ClientUserAccess[]
+  auditLogs       AuditLog[]
+  campaignNotes   CampaignNote[]
+  sharedLinks     SharedDashboardLink[]
+  adAccountAccess UserAdAccountAccess[]
 
   @@map("users")
 }
@@ -45,10 +46,12 @@ model Client {
   timezone     String   @default("UTC")
   currencyCode String   @default("USD")
   logoUrl      String?
-  isActive     Boolean  @default(true)
-  notes        String?  @db.Text
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  isActive         Boolean  @default(true)
+  notes            String?  @db.Text
+  subscriptionPlan String   @default("pro") // starter | pro | enterprise
+  maxAdAccounts    Int?                      // null = use plan default
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   userAccess       ClientUserAccess[]
   metaConnections  MetaConnection[]
@@ -77,6 +80,20 @@ model ClientUserAccess {
 
   @@unique([clientId, userId])
   @@map("client_user_access")
+}
+
+model UserAdAccountAccess {
+  id              String   @id @default(uuid())
+  userId          String
+  adAccountId     String
+  permissionLevel String   @default("view") // view | manage
+  createdAt       DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adAccount AdAccount @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, adAccountId])
+  @@map("user_ad_account_access")
 }
 
 // ─────────────────────────────────────────
@@ -134,6 +151,7 @@ model AdAccount {
   businessManager BusinessManager?       @relation(fields: [businessManagerId], references: [id])
   campaigns       Campaign[]
   pacingSnapshots BudgetPacingSnapshot[]
+  userAccess      UserAdAccountAccess[]
 
   @@map("ad_accounts")
 }

@@ -7,6 +7,11 @@ export const createClientSchema = z.object({
   currencyCode: z.string().length(3).optional().default("USD"),
   logoUrl: z.string().url().optional(),
   notes: z.string().max(2000).optional(),
+  subscriptionPlan: z.enum(["starter", "pro", "enterprise"]).optional(),
+  maxAdAccounts: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? null : Number(v)),
+    z.number().int().min(1).nullable().optional()
+  ),
 });
 
 export const updateClientSchema = createClientSchema.partial().extend({

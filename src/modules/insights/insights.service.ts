@@ -5,12 +5,18 @@
 import prisma from "@/lib/db/client";
 import { subDays } from "date-fns";
 
-async function getAssignedAdAccountIds(clientId: string): Promise<string[]> {
+async function getAssignedAdAccountIds(
+  clientId: string,
+  intersectWith: string[] | null = null
+): Promise<string[]> {
   const accounts = await prisma.adAccount.findMany({
     where: { clientId, isAssigned: true },
     select: { id: true },
   });
-  return accounts.map((a) => a.id);
+  const ids = accounts.map((a) => a.id);
+  if (intersectWith === null) return ids;
+  // Intersect: only IDs the user is allowed to see AND are assigned
+  return ids.filter((id) => intersectWith.includes(id));
 }
 
 export interface DateRange {
@@ -35,8 +41,12 @@ export function resolveDateRange(preset: PresetRange): DateRange {
   return map[preset];
 }
 
-export async function getClientOverview(clientId: string, range: DateRange) {
-  const assignedIds = await getAssignedAdAccountIds(clientId);
+export async function getClientOverview(
+  clientId: string,
+  range: DateRange,
+  restrictToIds: string[] | null = null
+) {
+  const assignedIds = await getAssignedAdAccountIds(clientId, restrictToIds);
   const accountFilter = assignedIds.length > 0 ? { adAccountId: { in: assignedIds } } : {};
 
   const [current, previous, latestPacing] = await Promise.all([
@@ -119,8 +129,12 @@ export async function getClientOverview(clientId: string, range: DateRange) {
   };
 }
 
-export async function getCampaignList(clientId: string, range: DateRange) {
-  const assignedIds = await getAssignedAdAccountIds(clientId);
+export async function getCampaignList(
+  clientId: string,
+  range: DateRange,
+  restrictToIds: string[] | null = null
+) {
+  const assignedIds = await getAssignedAdAccountIds(clientId, restrictToIds);
   const accountFilter = assignedIds.length > 0 ? { adAccountId: { in: assignedIds } } : {};
 
   const campaigns = await prisma.campaign.findMany({
@@ -170,9 +184,10 @@ export async function getCampaignList(clientId: string, range: DateRange) {
 export async function getTrendData(
   clientId: string,
   metric: "spend" | "leads" | "cpl",
-  range: DateRange
+  range: DateRange,
+  restrictToIds: string[] | null = null
 ) {
-  const assignedIds = await getAssignedAdAccountIds(clientId);
+  const assignedIds = await getAssignedAdAccountIds(clientId, restrictToIds);
   const accountFilter = assignedIds.length > 0 ? { adAccountId: { in: assignedIds } } : {};
 
   const snapshots = await prisma.insightSnapshot.findMany({
@@ -203,8 +218,12 @@ export async function getTrendData(
   }));
 }
 
-export async function getCreativesList(clientId: string, range: DateRange) {
-  const assignedIds = await getAssignedAdAccountIds(clientId);
+export async function getCreativesList(
+  clientId: string,
+  range: DateRange,
+  restrictToIds: string[] | null = null
+) {
+  const assignedIds = await getAssignedAdAccountIds(clientId, restrictToIds);
   const accountFilter = assignedIds.length > 0 ? { adAccountId: { in: assignedIds } } : {};
 
   const creatives = await prisma.adCreative.findMany({

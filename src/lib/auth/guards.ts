@@ -92,3 +92,29 @@ export function handleAuthError(error: unknown): Response {
   }
   throw error;
 }
+
+/**
+ * Returns null  → no restrictions; caller should show ALL ad accounts.
+ * Returns string[] → only these adAccountIds are accessible for this user.
+ *
+ * Owner and analyst always bypass (return null).
+ * For other roles: if no rows exist in user_ad_account_access → return null (backward-compatible).
+ */
+export async function getAccessibleAdAccountIds(
+  session: AuthSession,
+  clientId: string
+): Promise<string[] | null> {
+  const role = session.user.role as Role;
+  if (role === "owner" || role === "analyst") return null;
+
+  const rows = await prisma.userAdAccountAccess.findMany({
+    where: {
+      userId: session.user.id as string,
+      adAccount: { clientId },
+    },
+    select: { adAccountId: true },
+  });
+
+  if (rows.length === 0) return null; // no restrictions → see all
+  return rows.map((r) => r.adAccountId);
+}
