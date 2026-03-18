@@ -20,6 +20,7 @@ export type AuditEventType =
   | "meta.token_connected"
   | "meta.token_revoked"
   | "meta.sync_triggered"
+  | "meta.manual_account_added"
   | "meta_connection_created"
   | "meta_connection_deleted"
   | "lead.quality_updated"

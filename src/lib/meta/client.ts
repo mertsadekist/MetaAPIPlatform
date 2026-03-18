@@ -250,6 +250,30 @@ export class MetaApiClient {
     }
   }
 
+  /** Fetch a single ad account by ID — used for manual account verification */
+  async getAdAccountById(adAccountId: string): Promise<{
+    id: string;
+    name: string;
+    currency: string;
+    timezone_name: string;
+    account_status: number;
+    business?: { id: string; name: string };
+  }> {
+    const normalized = adAccountId.startsWith("act_")
+      ? adAccountId
+      : `act_${adAccountId}`;
+    return this.request<{
+      id: string;
+      name: string;
+      currency: string;
+      timezone_name: string;
+      account_status: number;
+      business?: { id: string; name: string };
+    }>(`/${normalized}`, {
+      fields: "id,name,currency,timezone_name,account_status,business",
+    });
+  }
+
   /** Fetch campaigns for an ad account */
   async getCampaigns(adAccountId: string): Promise<
     Array<{

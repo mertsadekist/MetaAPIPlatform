@@ -76,6 +76,22 @@ export default function MetaConnectionsPage() {
     metaAppId: "",
   });
 
+  // Manual account entry state
+  const [manualConnectionId, setManualConnectionId] = useState("");
+  const [manualAccountId, setManualAccountId] = useState("");
+  const [manualVerified, setManualVerified] = useState<{
+    id: string;
+    name: string;
+    currency: string;
+    timezone_name: string;
+    statusLabel: string;
+    business?: { id: string; name: string };
+  } | null>(null);
+  const [manualVerifying, setManualVerifying] = useState(false);
+  const [manualSaving, setManualSaving] = useState(false);
+  const [manualError, setManualError] = useState("");
+  const [manualSuccess, setManualSuccess] = useState("");
+
   useEffect(() => {
     fetch("/api/clients")
       .then((r) => r.json())
@@ -94,6 +110,12 @@ export default function MetaConnectionsPage() {
     if (!selectedClientId) return;
     loadConnections(selectedClientId);
   }, [selectedClientId, loadConnections]);
+
+  // Auto-select first active connection for manual entry
+  useEffect(() => {
+    const firstActive = connections.find((c) => c.status === "active");
+    setManualConnectionId(firstActive?.id ?? "");
+  }, [connections]);
 
   async function loadAdAccounts() {
     if (!selectedClientId) return;
@@ -266,6 +288,61 @@ export default function MetaConnectionsPage() {
     }
   }
 
+  async function handleVerifyManual() {
+    if (!manualAccountId.trim() || !manualConnectionId) return;
+    setManualVerifying(true);
+    setManualError("");
+    setManualVerified(null);
+    try {
+      const res = await fetch("/api/meta/manual-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: selectedClientId,
+          connectionId: manualConnectionId,
+          metaAdAccountId: manualAccountId.trim(),
+          action: "verify",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setManualError(data.error ?? "Verification failed"); return; }
+      setManualVerified(data.account);
+    } catch {
+      setManualError("Network error during verification");
+    } finally {
+      setManualVerifying(false);
+    }
+  }
+
+  async function handleSaveManual() {
+    if (!manualAccountId.trim() || !manualConnectionId) return;
+    setManualSaving(true);
+    setManualError("");
+    try {
+      const res = await fetch("/api/meta/manual-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: selectedClientId,
+          connectionId: manualConnectionId,
+          metaAdAccountId: manualAccountId.trim(),
+          action: "save",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setManualError(data.error ?? "Failed to save account"); return; }
+      setManualSuccess(`Account "${data.adAccount?.name ?? manualAccountId}" added successfully!`);
+      setManualAccountId("");
+      setManualVerified(null);
+      setShowAdAccounts(true);
+      await loadAdAccounts();
+    } catch {
+      setManualError("Network error while saving");
+    } finally {
+      setManualSaving(false);
+    }
+  }
+
   async function handleReactivate(connectionId: string) {
     setError("");
     setSuccessMsg("");
@@ -359,6 +436,10 @@ export default function MetaConnectionsPage() {
                   setPendingAssignments(new Map());
                   setSuccessMsg("");
                   setError("");
+                  setManualAccountId("");
+                  setManualVerified(null);
+                  setManualError("");
+                  setManualSuccess("");
                 }}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
               >
@@ -652,6 +733,141 @@ export default function MetaConnectionsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        )}
+
+        {/* ── ADD ACCOUNT MANUALLY ── */}
+        {selectedClientId && connections.length > 0 && (
+          <div className="bg-white rounded-2xl border border-indigo-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-indigo-100 bg-indigo-50">
+              <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                <Plus className="w-4 h-4 text-indigo-600" />
+                Add Ad Account Manually
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Enter the ad account ID directly — skips the full discovery crawl and avoids API rate limits
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              {manualSuccess && (
+                <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-800 px-4 py-2.5 rounded-xl text-sm">
+                  <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                  <span className="flex-1">{manualSuccess}</span>
+                  <button onClick={() => setManualSuccess("")} className="text-green-500 hover:text-green-700 font-medium">✕</button>
+                </div>
+              )}
+              {manualError && (
+                <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-800 px-4 py-2.5 rounded-xl text-sm">
+                  <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+                  <span className="flex-1">{manualError}</span>
+                  <button onClick={() => setManualError("")} className="text-red-400 hover:text-red-600 font-medium">✕</button>
+                </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Ad Account ID <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={manualAccountId}
+                    onChange={(e) => {
+                      setManualAccountId(e.target.value);
+                      setManualVerified(null);
+                      setManualError("");
+                    }}
+                    placeholder="act_123456789 or 123456789"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Use Connection <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={manualConnectionId}
+                    onChange={(e) => setManualConnectionId(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  >
+                    <option value="">-- Select connection --</option>
+                    {connections.filter((c) => c.status === "active").map((c) => (
+                      <option key={c.id} value={c.id}>{c.connectionName}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  onClick={handleVerifyManual}
+                  disabled={manualVerifying || !manualAccountId.trim() || !manualConnectionId}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors"
+                >
+                  {manualVerifying ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4" />
+                  )}
+                  {manualVerifying ? "Verifying…" : "Verify Access"}
+                </button>
+                {manualVerified && (
+                  <button
+                    onClick={handleSaveManual}
+                    disabled={manualSaving}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors"
+                  >
+                    {manualSaving ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Plus className="w-4 h-4" />
+                    )}
+                    {manualSaving ? "Adding…" : "Add to Client"}
+                  </button>
+                )}
+              </div>
+              {manualVerified && (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                    <span className="text-sm font-semibold text-green-900">Verified — Access Confirmed</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    <div>
+                      <p className="text-gray-500 font-medium">Account Name</p>
+                      <p className="text-gray-900 font-semibold mt-0.5">{manualVerified.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 font-medium">ID</p>
+                      <code className="text-gray-700 font-mono bg-gray-100 px-1.5 py-0.5 rounded mt-0.5 block truncate">{manualVerified.id}</code>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 font-medium">Currency</p>
+                      <p className="text-gray-900 font-semibold mt-0.5">{manualVerified.currency}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 font-medium">Status</p>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold mt-0.5 ${
+                        manualVerified.statusLabel === "ACTIVE"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-gray-100 text-gray-600"
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          manualVerified.statusLabel === "ACTIVE" ? "bg-green-500" : "bg-gray-400"
+                        }`} />
+                        {manualVerified.statusLabel}
+                      </span>
+                    </div>
+                  </div>
+                  {manualVerified.business && (
+                    <div className="text-xs text-gray-500 flex items-center gap-1.5 pt-1 flex-wrap">
+                      <Layers className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      Business Manager:
+                      <span className="font-semibold text-gray-700">{manualVerified.business.name}</span>
+                      <code className="text-gray-400 font-mono bg-gray-100 px-1 rounded">({manualVerified.business.id})</code>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
