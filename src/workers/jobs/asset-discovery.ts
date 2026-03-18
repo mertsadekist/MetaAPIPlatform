@@ -67,287 +67,267 @@ export async function runAssetDiscovery(clientId: string): Promise<JobResult> {
         personalBmDbId = personalBm?.id ?? null;
       }
 
-      // Collect all ad accounts: personal + from all Business Managers
       type RawAccount = {
         id: string; name: string; account_status: number;
         currency: string; timezone_name: string;
         amount_spent: string; balance: string;
       };
-      const allAccountSources: Array<{ bmDbId: string | null; acc: RawAccount }> = [];
 
-      for (const acc of personalAccounts) {
-        allAccountSources.push({ bmDbId: personalBmDbId, acc });
-      }
+      // Helper: upsert one ad account + its campaigns/adsets/ads/creatives
+      // Defined as arrow function so it closes over api, prisma, clientId, log, etc.
+      const processAccount = async (bmDbId: string | null, acc: RawAccount) => {
+        const rawId = acc.id.replace("act_", "");
+        const metaAdAccountId = rawId;
 
-      // ── Business Managers ──────────────────────────────────────
-      const businesses = await api.getBusinessManagers();
-      log.info({ count: businesses.length }, "Business managers found");
-
-      for (const bm of businesses) {
-        await prisma.businessManager.upsert({
-          where: { metaBusinessId: bm.id },
-          update: { name: bm.name, isActive: true, lastSyncedAt: new Date() },
+        await prisma.adAccount.upsert({
+          where: { metaAdAccountId },
+          update: {
+            name: acc.name,
+            effectiveStatus: String(acc.account_status),
+            currency: acc.currency,
+            timezone: acc.timezone_name,
+            isActive: acc.account_status === 1,
+            rawPayload: acc as object,
+            lastSyncedAt: new Date(),
+          },
           create: {
             clientId,
-            metaBusinessId: bm.id,
-            name: bm.name,
-            isActive: true,
+            ...(bmDbId ? { businessManagerId: bmDbId } : {}),
+            metaAdAccountId,
+            name: acc.name,
+            currency: acc.currency,
+            timezone: acc.timezone_name,
+            effectiveStatus: String(acc.account_status),
+            isActive: acc.account_status === 1,
+            rawPayload: acc as object,
             lastSyncedAt: new Date(),
           },
         });
 
-        const dbBm = await prisma.businessManager.findUnique({
-          where: { metaBusinessId: bm.id },
-        });
-        if (!dbBm) continue;
+        const dbAcc = await prisma.adAccount.findUnique({ where: { metaAdAccountId } });
+        if (!dbAcc) return;
 
-        // Owned + client ad accounts for this BM
-        const [ownedAccounts, clientAccounts] = await Promise.all([
-          api.getAdAccounts(bm.id),
-          api.getClientAdAccounts(bm.id),
-        ]);
+        const campaigns = await api.getCampaigns(rawId);
 
-        // Deduplicate by account id across owned + client
-        const seen = new Set<string>();
-        for (const acc of [...ownedAccounts, ...clientAccounts]) {
-          if (!seen.has(acc.id)) {
-            seen.add(acc.id);
-            allAccountSources.push({ bmDbId: dbBm.id, acc });
-          }
-        }
-      }
-
-      log.info({ total: allAccountSources.length }, "Total ad accounts to sync");
-
-      // ── Process all collected Ad Accounts ────────────────────
-      for (const { bmDbId, acc } of allAccountSources) {
-          // Meta returns act_XXXXX — strip prefix for our ID field
-          const rawId = acc.id.replace("act_", "");
-          const metaAdAccountId = rawId;
-
-          await prisma.adAccount.upsert({
-            where: { metaAdAccountId },
+        for (const camp of campaigns) {
+          await prisma.campaign.upsert({
+            where: { metaCampaignId: camp.id },
             update: {
-              name: acc.name,
-              effectiveStatus: String(acc.account_status),
-              currency: acc.currency,
-              timezone: acc.timezone_name,
-              isActive: acc.account_status === 1,
-              rawPayload: acc as object,
-              lastSyncedAt: new Date(),
+              name: camp.name,
+              effectiveStatus: camp.effective_status,
+              objective: camp.objective,
+              buyingType: camp.buying_type,
+              dailyBudget: camp.daily_budget ? parseFloat(camp.daily_budget) / 100 : null,
+              lifetimeBudget: camp.lifetime_budget ? parseFloat(camp.lifetime_budget) / 100 : null,
+              startTime: camp.start_time ? new Date(camp.start_time) : null,
+              stopTime: camp.stop_time ? new Date(camp.stop_time) : null,
+              updatedTimeMeta: new Date(camp.updated_time),
+              rawPayload: camp as object,
+              updatedAt: new Date(),
             },
             create: {
               clientId,
-              ...(bmDbId ? { businessManagerId: bmDbId } : {}),
-              metaAdAccountId,
-              name: acc.name,
-              currency: acc.currency,
-              timezone: acc.timezone_name,
-              effectiveStatus: String(acc.account_status),
-              isActive: acc.account_status === 1,
-              rawPayload: acc as object,
-              lastSyncedAt: new Date(),
+              adAccountId: dbAcc.id,
+              metaCampaignId: camp.id,
+              name: camp.name,
+              objective: camp.objective,
+              effectiveStatus: camp.effective_status,
+              buyingType: camp.buying_type,
+              dailyBudget: camp.daily_budget ? parseFloat(camp.daily_budget) / 100 : null,
+              lifetimeBudget: camp.lifetime_budget ? parseFloat(camp.lifetime_budget) / 100 : null,
+              startTime: camp.start_time ? new Date(camp.start_time) : null,
+              stopTime: camp.stop_time ? new Date(camp.stop_time) : null,
+              createdTimeMeta: new Date(camp.created_time),
+              updatedTimeMeta: new Date(camp.updated_time),
+              rawPayload: camp as object,
             },
           });
 
-          const dbAcc = await prisma.adAccount.findUnique({
-            where: { metaAdAccountId },
-          });
-          if (!dbAcc) continue;
+          const dbCamp = await prisma.campaign.findUnique({ where: { metaCampaignId: camp.id } });
+          if (!dbCamp) continue;
 
-          // ── Campaigns ────────────────────────────────────────────
-          const campaigns = await api.getCampaigns(rawId);
-
-          for (const camp of campaigns) {
-            await prisma.campaign.upsert({
+          if (WA_OBJECTIVES.has(camp.objective)) {
+            await prisma.whatsAppCampaign.upsert({
               where: { metaCampaignId: camp.id },
               update: {
-                name: camp.name,
-                effectiveStatus: camp.effective_status,
-                objective: camp.objective,
-                buyingType: camp.buying_type,
-                dailyBudget: camp.daily_budget
-                  ? parseFloat(camp.daily_budget) / 100
-                  : null,
-                lifetimeBudget: camp.lifetime_budget
-                  ? parseFloat(camp.lifetime_budget) / 100
-                  : null,
-                startTime: camp.start_time ? new Date(camp.start_time) : null,
-                stopTime: camp.stop_time ? new Date(camp.stop_time) : null,
-                updatedTimeMeta: new Date(camp.updated_time),
-                rawPayload: camp as object,
+                campaignName: camp.name,
+                status: camp.effective_status === "ACTIVE" ? "active"
+                  : camp.effective_status === "PAUSED" ? "paused" : "archived",
+              },
+              create: {
+                clientId,
+                campaignId: dbCamp.id,
+                metaCampaignId: camp.id,
+                campaignName: camp.name,
+                trackingMethod: "click_to_wa",
+                status: camp.effective_status === "ACTIVE" ? "active"
+                  : camp.effective_status === "PAUSED" ? "paused" : "archived",
+              },
+            });
+          }
+
+          const adSets = await api.getAdSets(camp.id);
+          for (const adSet of adSets) {
+            await prisma.adSet.upsert({
+              where: { metaAdSetId: adSet.id },
+              update: {
+                name: adSet.name,
+                effectiveStatus: adSet.effective_status,
+                optimizationGoal: adSet.optimization_goal,
+                billingEvent: adSet.billing_event,
+                dailyBudget: adSet.daily_budget ? parseFloat(adSet.daily_budget) / 100 : null,
+                lifetimeBudget: adSet.lifetime_budget ? parseFloat(adSet.lifetime_budget) / 100 : null,
+                targetingJson: adSet.targeting as object,
+                rawPayload: adSet as object,
                 updatedAt: new Date(),
               },
               create: {
                 clientId,
-                adAccountId: dbAcc.id,
-                metaCampaignId: camp.id,
-                name: camp.name,
-                objective: camp.objective,
-                effectiveStatus: camp.effective_status,
-                buyingType: camp.buying_type,
-                dailyBudget: camp.daily_budget
-                  ? parseFloat(camp.daily_budget) / 100
-                  : null,
-                lifetimeBudget: camp.lifetime_budget
-                  ? parseFloat(camp.lifetime_budget) / 100
-                  : null,
-                startTime: camp.start_time ? new Date(camp.start_time) : null,
-                stopTime: camp.stop_time ? new Date(camp.stop_time) : null,
-                createdTimeMeta: new Date(camp.created_time),
-                updatedTimeMeta: new Date(camp.updated_time),
-                rawPayload: camp as object,
+                campaignId: dbCamp.id,
+                metaAdSetId: adSet.id,
+                name: adSet.name,
+                effectiveStatus: adSet.effective_status,
+                optimizationGoal: adSet.optimization_goal,
+                billingEvent: adSet.billing_event,
+                dailyBudget: adSet.daily_budget ? parseFloat(adSet.daily_budget) / 100 : null,
+                lifetimeBudget: adSet.lifetime_budget ? parseFloat(adSet.lifetime_budget) / 100 : null,
+                targetingJson: adSet.targeting as object,
+                rawPayload: adSet as object,
+                createdTimeMeta: new Date(adSet.created_time),
               },
             });
 
-            const dbCamp = await prisma.campaign.findUnique({
-              where: { metaCampaignId: camp.id },
-            });
-            if (!dbCamp) continue;
+            const dbAdSet = await prisma.adSet.findUnique({ where: { metaAdSetId: adSet.id } });
+            if (!dbAdSet) continue;
 
-            // Tag WhatsApp campaigns
-            if (WA_OBJECTIVES.has(camp.objective)) {
-              await prisma.whatsAppCampaign.upsert({
-                where: { metaCampaignId: camp.id },
-                update: {
-                  campaignName: camp.name,
-                  status:
-                    camp.effective_status === "ACTIVE"
-                      ? "active"
-                      : camp.effective_status === "PAUSED"
-                      ? "paused"
-                      : "archived",
-                },
-                create: {
-                  clientId,
-                  campaignId: dbCamp.id,
-                  metaCampaignId: camp.id,
-                  campaignName: camp.name,
-                  trackingMethod: "click_to_wa",
-                  status:
-                    camp.effective_status === "ACTIVE"
-                      ? "active"
-                      : camp.effective_status === "PAUSED"
-                      ? "paused"
-                      : "archived",
-                },
-              });
-            }
+            const ads = await api.getAds(adSet.id);
+            for (const ad of ads) {
+              let creativeDbId: string | undefined;
+              if (ad.creative?.id) {
+                try {
+                  const creative = await api.getCreative(ad.creative.id);
+                  const dbCreative = await prisma.adCreative.upsert({
+                    where: { metaCreativeId: creative.id },
+                    update: {
+                      name: creative.name,
+                      primaryText: creative.body,
+                      headline: creative.title,
+                      callToActionType: creative.call_to_action_type,
+                      imageUrl: creative.image_url,
+                      thumbnailUrl: creative.thumbnail_url,
+                      objectStorySpec: creative.object_story_spec as object,
+                      videoId: creative.video_id,
+                      rawPayload: creative as object,
+                      updatedAt: new Date(),
+                    },
+                    create: {
+                      clientId,
+                      metaCreativeId: creative.id,
+                      name: creative.name,
+                      primaryText: creative.body,
+                      headline: creative.title,
+                      callToActionType: creative.call_to_action_type,
+                      imageUrl: creative.image_url,
+                      thumbnailUrl: creative.thumbnail_url,
+                      objectStorySpec: creative.object_story_spec as object,
+                      videoId: creative.video_id,
+                      rawPayload: creative as object,
+                    },
+                  });
+                  creativeDbId = dbCreative.id;
+                } catch (e) {
+                  log.warn({ adId: ad.id, error: String(e) }, "Failed to fetch creative");
+                }
+              }
 
-            // ── AdSets ─────────────────────────────────────────────
-            const adSets = await api.getAdSets(camp.id);
-            for (const adSet of adSets) {
-              await prisma.adSet.upsert({
-                where: { metaAdSetId: adSet.id },
+              await prisma.ad.upsert({
+                where: { metaAdId: ad.id },
                 update: {
-                  name: adSet.name,
-                  effectiveStatus: adSet.effective_status,
-                  optimizationGoal: adSet.optimization_goal,
-                  billingEvent: adSet.billing_event,
-                  dailyBudget: adSet.daily_budget
-                    ? parseFloat(adSet.daily_budget) / 100
-                    : null,
-                  lifetimeBudget: adSet.lifetime_budget
-                    ? parseFloat(adSet.lifetime_budget) / 100
-                    : null,
-                  targetingJson: adSet.targeting as object,
-                  rawPayload: adSet as object,
+                  name: ad.name,
+                  effectiveStatus: ad.effective_status,
+                  creativeId: creativeDbId,
+                  rawPayload: ad as object,
                   updatedAt: new Date(),
                 },
                 create: {
                   clientId,
+                  adSetId: dbAdSet.id,
                   campaignId: dbCamp.id,
-                  metaAdSetId: adSet.id,
-                  name: adSet.name,
-                  effectiveStatus: adSet.effective_status,
-                  optimizationGoal: adSet.optimization_goal,
-                  billingEvent: adSet.billing_event,
-                  dailyBudget: adSet.daily_budget
-                    ? parseFloat(adSet.daily_budget) / 100
-                    : null,
-                  lifetimeBudget: adSet.lifetime_budget
-                    ? parseFloat(adSet.lifetime_budget) / 100
-                    : null,
-                  targetingJson: adSet.targeting as object,
-                  rawPayload: adSet as object,
-                  createdTimeMeta: new Date(adSet.created_time),
+                  metaAdId: ad.id,
+                  name: ad.name,
+                  effectiveStatus: ad.effective_status,
+                  creativeId: creativeDbId,
+                  rawPayload: ad as object,
+                  createdTimeMeta: new Date(ad.created_time),
                 },
               });
 
-              const dbAdSet = await prisma.adSet.findUnique({
-                where: { metaAdSetId: adSet.id },
-              });
-              if (!dbAdSet) continue;
-
-              // ── Ads ──────────────────────────────────────────────
-              const ads = await api.getAds(adSet.id);
-              for (const ad of ads) {
-                let creativeDbId: string | undefined;
-
-                if (ad.creative?.id) {
-                  try {
-                    const creative = await api.getCreative(ad.creative.id);
-                    const dbCreative = await prisma.adCreative.upsert({
-                      where: { metaCreativeId: creative.id },
-                      update: {
-                        name: creative.name,
-                        primaryText: creative.body,
-                        headline: creative.title,
-                        callToActionType: creative.call_to_action_type,
-                        imageUrl: creative.image_url,
-                        thumbnailUrl: creative.thumbnail_url,
-                        objectStorySpec: creative.object_story_spec as object,
-                        videoId: creative.video_id,
-                        rawPayload: creative as object,
-                        updatedAt: new Date(),
-                      },
-                      create: {
-                        clientId,
-                        metaCreativeId: creative.id,
-                        name: creative.name,
-                        primaryText: creative.body,
-                        headline: creative.title,
-                        callToActionType: creative.call_to_action_type,
-                        imageUrl: creative.image_url,
-                        thumbnailUrl: creative.thumbnail_url,
-                        objectStorySpec: creative.object_story_spec as object,
-                        videoId: creative.video_id,
-                        rawPayload: creative as object,
-                      },
-                    });
-                    creativeDbId = dbCreative.id;
-                  } catch (e) {
-                    log.warn({ adId: ad.id, error: String(e) }, "Failed to fetch creative");
-                  }
-                }
-
-                await prisma.ad.upsert({
-                  where: { metaAdId: ad.id },
-                  update: {
-                    name: ad.name,
-                    effectiveStatus: ad.effective_status,
-                    creativeId: creativeDbId,
-                    rawPayload: ad as object,
-                    updatedAt: new Date(),
-                  },
-                  create: {
-                    clientId,
-                    adSetId: dbAdSet.id,
-                    campaignId: dbCamp.id,
-                    metaAdId: ad.id,
-                    name: ad.name,
-                    effectiveStatus: ad.effective_status,
-                    creativeId: creativeDbId,
-                    rawPayload: ad as object,
-                    createdTimeMeta: new Date(ad.created_time),
-                  },
-                });
-
-                itemsProcessed++;
-              }
+              itemsProcessed++;
             }
           }
         }
+      }
+
+      // ── Step 1: Save personal accounts immediately ─────────────
+      // Saved to DB right away so a later BM rate-limit never loses them.
+      log.info({ count: personalAccounts.length }, "Processing personal ad accounts");
+      for (const acc of personalAccounts) {
+        await processAccount(personalBmDbId, acc);
+      }
+
+      // ── Step 2: Business Managers — each isolated in try/catch ──
+      // A rate-limit or error on one BM does NOT abort the others.
+      let businesses: Array<{ id: string; name: string }> = [];
+      try {
+        businesses = await api.getBusinessManagers();
+        log.info({ count: businesses.length }, "Business managers found");
+      } catch (bmListError) {
+        const msg = `BM list fetch failed: ${String(bmListError)}`;
+        errors.push(msg);
+        log.warn({ error: String(bmListError) }, "Could not fetch business managers list");
+      }
+
+      for (const bm of businesses) {
+        try {
+          await prisma.businessManager.upsert({
+            where: { metaBusinessId: bm.id },
+            update: { name: bm.name, isActive: true, lastSyncedAt: new Date() },
+            create: {
+              clientId,
+              metaBusinessId: bm.id,
+              name: bm.name,
+              isActive: true,
+              lastSyncedAt: new Date(),
+            },
+          });
+
+          const dbBm = await prisma.businessManager.findUnique({
+            where: { metaBusinessId: bm.id },
+          });
+          if (!dbBm) continue;
+
+          const [ownedAccounts, clientAccounts] = await Promise.all([
+            api.getAdAccounts(bm.id),
+            api.getClientAdAccounts(bm.id),
+          ]);
+
+          const seen = new Set<string>();
+          for (const acc of [...ownedAccounts, ...clientAccounts]) {
+            if (!seen.has(acc.id)) {
+              seen.add(acc.id);
+              // Save each BM account to DB immediately
+              await processAccount(dbBm.id, acc);
+            }
+          }
+
+          log.info({ bmId: bm.id, bmName: bm.name, count: seen.size }, "BM accounts processed");
+        } catch (bmError) {
+          const msg = `BM ${bm.name} (${bm.id}): ${String(bmError)}`;
+          errors.push(msg);
+          log.warn({ bmId: bm.id, error: String(bmError) }, "BM account fetch failed, continuing with next BM");
+        }
+      }
+
     } catch (e) {
       const msg = `Connection ${conn.id}: ${String(e)}`;
       errors.push(msg);
