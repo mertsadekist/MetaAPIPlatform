@@ -19,6 +19,91 @@ Planned for upcoming phases:
 
 ---
 
+## [0.5.0] — 2026-03-18 · *User & Client Management + Ad Account Permission System*
+
+### Added
+- **User CRUD** — full edit, delete, toggle active/inactive, and admin password reset for all users
+  - `PATCH /api/users/[userId]` — update `displayName`, `email`, `role`, `isActive` (owner only)
+  - `DELETE /api/users/[userId]` — delete user with self-delete guard; returns 400 if attempting own account
+  - `PATCH /api/users/[userId]/password` — admin password reset (no current password required)
+- **Subscription plan tiers** (Option C) — `starter` / `pro` / `enterprise` field on `Client` model
+  - `src/lib/subscriptions/plans.ts` — plan constants (`maxAdAccounts`, `aiFeatures`, `reports`, `alerts`, `sharedLinks`) + `getEffectiveAdAccountLimit()` helper
+  - Plan badge displayed on client detail page header and in client edit form
+  - Plan features shown in edit form as colored tags (AI, Reports, Alerts, Shared Links)
+- **Per-client ad account quota** (Option A) — `maxAdAccounts Int?` on `Client` model
+  - Admin can override the plan default with a custom integer limit per client
+  - `PATCH /api/admin/ad-accounts` now enforces quota before assignment; returns `400` with descriptive message on limit breach
+  - `GET /api/admin/ad-accounts` now returns `{ quota: { limit, plan } }` in the response
+  - Quota usage bar shown in client detail stats card ("X / Y assigned")
+- **Per-user ad account access restrictions** (Option B) — new `UserAdAccountAccess` Prisma model
+  - `GET /api/users/[userId]/ad-accounts?clientId=xxx` — fetch current restrictions for a user scoped to a client
+  - `PUT /api/users/[userId]/ad-accounts` — replace access list; empty `adAccountIds` removes all restrictions (user sees all accounts again)
+  - Backward-compatible: users with zero entries in `user_ad_account_access` see all accounts (existing behavior unchanged)
+- **Per-user permission level on ad accounts** (Option D) — `permissionLevel: "view" | "manage"` on `UserAdAccountAccess`
+  - `view` — user can see insights, charts, and metrics for restricted accounts
+  - `manage` — user can also trigger syncs, export data, and add notes
+- **`getAccessibleAdAccountIds()` helper** in `src/lib/auth/guards.ts`
+  - Returns `null` for owner/analyst (bypass, see all) or when no restrictions exist
+  - Returns `string[]` of allowed account IDs when restrictions are set
+- **Insights API ad account filtering** — all four insight endpoints now apply per-user account restrictions:
+  - `GET /api/insights/overview` — scopes KPI aggregation to allowed accounts
+  - `GET /api/insights/campaigns` — scopes campaign list and metrics to allowed accounts
+  - `GET /api/insights/trend` — scopes trend chart data to allowed accounts
+  - `GET /api/insights/creatives` — scopes creative metrics to allowed accounts
+  - `insights.service.ts` updated: `getAssignedAdAccountIds()` accepts optional `intersectWith` parameter; all four service functions accept optional `restrictToIds`
+
+### Changed
+- **Admin Users page** — full rewrite with professional management UI:
+  - Inline **Edit panel** (blue-50 bg) per row: edit displayName, email, role, status
+  - Inline **Password panel** (amber-50 bg) per row: new password + confirm with client-side match check
+  - Functional **toggle switch** in Status column: animated green/gray pill, PATCH fires on click
+  - **Two-step delete confirmation** inline in the Actions cell (no modal)
+  - Role badges with distinct colors: owner=purple, analyst=blue, client_manager=green, client_viewer=gray
+  - Action buttons: edit (pencil), change password (key), delete (trash)
+- **Admin Client Detail page** — augmented with full management capabilities:
+  - **Clickable status badge** in header → toggles `isActive` via PUT (no page reload)
+  - **Edit Client button** → opens inline form below header; fields: displayName, industry, timezone, currency, notes, subscription plan, custom ad account limit
+  - **Delete button** with two-step inline confirmation → DELETE → `router.push("/admin/clients")`
+  - **Subscription plan selector** in edit form with plan feature indicators
+  - **Ad account quota display** in stats card: `X / Y assigned` or `X assigned (unlimited)`
+  - **Per-user ad account restriction panel** (collapsible, indigo-50 bg) inside the Assigned Users table — one per assigned user:
+    - Checkboxes for all `isAssigned` ad accounts of the client
+    - "All accounts (no restriction)" option to clear all restrictions
+    - Permission level radio buttons (View only / Full manage)
+    - Save button calls `PUT /api/users/[userId]/ad-accounts`
+  - Stats grid now shows `Competitors Tracked` instead of Campaigns (which is not in the `getClient` query)
+  - Fixed interface to match actual Prisma schema fields (`currencyCode`, not `currency`; no `slug` or `monthlyBudget`)
+- **`client.schema.ts`** — `subscriptionPlan` and `maxAdAccounts` added to both `createClientSchema` and `updateClientSchema`
+
+### Database
+- New table: `user_ad_account_access` — links `User` ↔ `AdAccount` with `permissionLevel`; cascades on user/account delete
+- New columns on `clients` table: `subscriptionPlan VARCHAR` (default `'pro'`), `maxAdAccounts INT NULL`
+- Relations added: `User.adAccountAccess`, `AdAccount.userAccess`
+
+---
+
+## [0.4.4] — 2026-03-18
+
+### Fixed
+- **Asset discovery — accounts lost on Meta rate limit** (commit `c51a1e0`)
+  Previously, the job collected all accounts into a `allAccountSources[]` array and saved them in a single loop at the end. If Meta returned a rate-limit error (code 17) during Business Manager fetching, the outer `try/catch` aborted before the save loop — even successfully fetched personal accounts were never written to the database. Fixed by extracting a `processAccount()` arrow function that writes each ad account (plus its campaigns/adsets/ads/creatives) to the database immediately upon fetch. Personal accounts are now saved first. Each Business Manager is wrapped in its own isolated `try/catch` so a BM failure does not abort the others.
+- **Meta API client — wasted retry budget on rate limit errors** (commit `8a5c1e0`)
+  Code 17 (`User request limit reached`) previously triggered the standard exponential-backoff retry (1s, 2s, 4s). Since Meta's rate limit window is ~1 hour, retrying after a few seconds burned quota and always failed. Now throws immediately on code 17 with no retries. Other retryable errors (network timeouts, 5xx) retain the existing retry logic.
+- **Meta API client — late proactive throttling** (commit `8a5c1e0`)
+  The `x-app-usage` header-based throttle previously only triggered at 75%+ usage. Updated thresholds: 60% → 500ms delay, 75% → 3s delay, 90% → 10s delay — stopping problems earlier before the limit is reached.
+
+### Added
+- **"Sync Now" button** on Admin → Meta Connections page (commit `4dbb448`)
+  Queues an `hourly_sync` job immediately for the selected client without navigating to the Scheduler tab. The button shows a spinner while pending and displays success/error feedback inline. Calls `POST /api/admin/jobs` with `{ clientId, jobType: "hourly_sync" }`.
+
+### Changed
+- **Ad account assignment** — batch save with `isAssigned` filtering (commit `57e9461`)
+  - Assignment UI changed from individual checkbox toggles to a batch "Save Assignments" workflow: all changes are collected locally and written in a single `PATCH /api/admin/ad-accounts` request with a `assignments[]` array — eliminates multiple round-trips and flickering.
+  - Insights service (`getClientOverview`, `getCampaignList`, etc.) now filters by `isAssigned: true` accounts; unassigned accounts are excluded from all KPI calculations.
+  - Ad account row now displays the account `currency` field fetched from the Meta API, replacing the previous placeholder.
+
+---
+
 ## [0.4.3] — 2026-03-17
 
 ### Fixed
