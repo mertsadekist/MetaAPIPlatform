@@ -148,7 +148,8 @@ export async function getCampaignList(
   if (campaigns.length > 0) {
     // Aggregate metrics per campaign from InsightSnapshot
     const metricsMap = new Map<string, {
-      spend: number; leads: number; clicks: number; impressions: number; cpl: number | null;
+      spend: number; leads: number; clicks: number; impressions: number;
+      messagesStarted: number; cpl: number | null; costPerMessage: number | null;
     }>();
 
     // Try by campaignId first
@@ -161,19 +162,22 @@ export async function getCampaignList(
         dateStart: { gte: range.since, lte: range.until },
         campaignId: { not: null },
       },
-      _sum: { spend: true, leads: true, clicks: true, impressions: true },
+      _sum: { spend: true, leads: true, clicks: true, impressions: true, messagesStarted: true },
     });
 
     for (const s of snapshotsByCampaign) {
       if (!s.campaignId) continue;
       const spend = Number(s._sum.spend ?? 0);
       const leads = Number(s._sum.leads ?? 0);
+      const messagesStarted = Number(s._sum.messagesStarted ?? 0);
       metricsMap.set(s.campaignId, {
         spend,
         leads,
         clicks: Number(s._sum.clicks ?? 0),
         impressions: Number(s._sum.impressions ?? 0),
+        messagesStarted,
         cpl: leads > 0 ? spend / leads : null,
+        costPerMessage: messagesStarted > 0 ? spend / messagesStarted : null,
       });
     }
 
@@ -188,7 +192,7 @@ export async function getCampaignList(
           dateStart: { gte: range.since, lte: range.until },
           adSetId: { not: null },
         },
-        _sum: { spend: true, leads: true, clicks: true, impressions: true },
+        _sum: { spend: true, leads: true, clicks: true, impressions: true, messagesStarted: true },
       });
 
       const adSetIds = snapshotsByAdSet.map((s) => s.adSetId).filter(Boolean) as string[];
@@ -202,22 +206,25 @@ export async function getCampaignList(
         if (!s.adSetId) continue;
         const campaignId = adSetToCampaign.get(s.adSetId);
         if (!campaignId) continue;
-        const prev = metricsMap.get(campaignId) ?? { spend: 0, leads: 0, clicks: 0, impressions: 0, cpl: null };
+        const prev = metricsMap.get(campaignId) ?? { spend: 0, leads: 0, clicks: 0, impressions: 0, messagesStarted: 0, cpl: null, costPerMessage: null };
         const spend = prev.spend + Number(s._sum.spend ?? 0);
         const leads = prev.leads + Number(s._sum.leads ?? 0);
+        const messagesStarted = prev.messagesStarted + Number(s._sum.messagesStarted ?? 0);
         metricsMap.set(campaignId, {
           spend,
           leads,
           clicks: prev.clicks + Number(s._sum.clicks ?? 0),
           impressions: prev.impressions + Number(s._sum.impressions ?? 0),
+          messagesStarted,
           cpl: leads > 0 ? spend / leads : null,
+          costPerMessage: messagesStarted > 0 ? spend / messagesStarted : null,
         });
       }
     }
 
     return campaigns.map((c) => ({
       ...c,
-      metrics: metricsMap.get(c.id) ?? { spend: 0, leads: 0, clicks: 0, impressions: 0, cpl: null },
+      metrics: metricsMap.get(c.id) ?? { spend: 0, leads: 0, clicks: 0, impressions: 0, messagesStarted: 0, cpl: null, costPerMessage: null },
     }));
   }
 
@@ -231,7 +238,7 @@ export async function getCampaignList(
       dateStart: { gte: range.since, lte: range.until },
       adSetId: { not: null },
     },
-    _sum: { spend: true, leads: true, clicks: true, impressions: true },
+    _sum: { spend: true, leads: true, clicks: true, impressions: true, messagesStarted: true },
   });
 
   if (snapshotsByAdSet.length === 0) return [];
@@ -262,17 +269,18 @@ export async function getCampaignList(
   const adSetToCampaignId = new Map(adSets.map((a) => [a.id, a.campaignId]));
 
   // Aggregate metrics per campaign
-  const campaignMetrics = new Map<string, { spend: number; leads: number; clicks: number; impressions: number }>();
+  const campaignMetrics = new Map<string, { spend: number; leads: number; clicks: number; impressions: number; messagesStarted: number }>();
   for (const s of snapshotsByAdSet) {
     if (!s.adSetId) continue;
     const campaignId = adSetToCampaignId.get(s.adSetId);
     if (!campaignId) continue;
-    const prev = campaignMetrics.get(campaignId) ?? { spend: 0, leads: 0, clicks: 0, impressions: 0 };
+    const prev = campaignMetrics.get(campaignId) ?? { spend: 0, leads: 0, clicks: 0, impressions: 0, messagesStarted: 0 };
     campaignMetrics.set(campaignId, {
       spend: prev.spend + Number(s._sum.spend ?? 0),
       leads: prev.leads + Number(s._sum.leads ?? 0),
       clicks: prev.clicks + Number(s._sum.clicks ?? 0),
       impressions: prev.impressions + Number(s._sum.impressions ?? 0),
+      messagesStarted: prev.messagesStarted + Number(s._sum.messagesStarted ?? 0),
     });
   }
 
@@ -284,8 +292,9 @@ export async function getCampaignList(
         leads: acc.leads + Number(s._sum.leads ?? 0),
         clicks: acc.clicks + Number(s._sum.clicks ?? 0),
         impressions: acc.impressions + Number(s._sum.impressions ?? 0),
+        messagesStarted: acc.messagesStarted + Number(s._sum.messagesStarted ?? 0),
       }),
-      { spend: 0, leads: 0, clicks: 0, impressions: 0 }
+      { spend: 0, leads: 0, clicks: 0, impressions: 0, messagesStarted: 0 }
     );
     // Look up adAccount for currency
     const fallbackAccount = assignedIds.length > 0
@@ -310,7 +319,11 @@ export async function getCampaignList(
       createdAt: new Date(),
       updatedAt: new Date(),
       adAccount: fallbackAccount,
-      metrics: { ...total, cpl: total.leads > 0 ? total.spend / total.leads : null },
+      metrics: {
+        ...total,
+        cpl: total.leads > 0 ? total.spend / total.leads : null,
+        costPerMessage: total.messagesStarted > 0 ? total.spend / total.messagesStarted : null,
+      },
     }];
   }
 
@@ -318,6 +331,7 @@ export async function getCampaignList(
     const campaign = campaignDbMap.get(campaignId);
     const spend = metrics.spend;
     const leads = metrics.leads;
+    const messagesStarted = metrics.messagesStarted;
     return {
       id: campaign?.id ?? campaignId,
       clientId,
@@ -342,7 +356,9 @@ export async function getCampaignList(
         leads,
         clicks: metrics.clicks,
         impressions: metrics.impressions,
+        messagesStarted,
         cpl: leads > 0 ? spend / leads : null,
+        costPerMessage: messagesStarted > 0 ? spend / messagesStarted : null,
       },
     };
   });

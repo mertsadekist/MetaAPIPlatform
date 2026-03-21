@@ -53,21 +53,30 @@ export async function POST(req: NextRequest) {
     }
 
     // Load connection and ad accounts
-    const connections = await prisma.metaConnection.findMany({
+    let connections = await prisma.metaConnection.findMany({
       where: { clientId, status: "active" },
     });
+
+    // Admin fallback: if no connection found for this client, use any active connection
+    if (connections.length === 0) {
+      connections = await prisma.metaConnection.findMany({
+        where: { status: "active" },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      });
+    }
 
     const adAccounts = await prisma.adAccount.findMany({
       where: { clientId, isActive: true, isAssigned: true },
     });
 
     if (adAccounts.length === 0) {
-      return Response.json({ success: false, error: "No active ad accounts found" }, { status: 400 });
+      return Response.json({ success: false, error: "No active ad accounts found for this client" }, { status: 400 });
     }
 
     const conn = connections[0];
     if (!conn) {
-      return Response.json({ success: false, error: "No active Meta connection" }, { status: 400 });
+      return Response.json({ success: false, error: "No active Meta connection found anywhere in the system" }, { status: 400 });
     }
 
     const token = decryptToken(conn.accessTokenHash);

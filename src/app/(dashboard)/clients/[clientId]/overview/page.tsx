@@ -23,6 +23,16 @@ const PRESETS: { value: Preset; label: string }[] = [
   { value: "this_month", label: "Month" },
 ];
 
+interface PacingData {
+  pacingStatus: string;
+  spentToDate: number;
+  monthBudget: number | null;
+  projectedSpend: number;
+  daysElapsed: number;
+  daysRemaining: number;
+  adAccount: { name: string; currency: string };
+}
+
 interface Overview {
   spend: number;
   leads: number;
@@ -35,15 +45,6 @@ interface Overview {
   messagesStarted: number;
   currency: string;
   deltas: { spend: number | null; leads: number | null; cpl: number | null };
-  pacing?: {
-    pacingStatus: string;
-    spentToDate: number;
-    monthBudget: number | null;
-    projectedSpend: number;
-    daysElapsed: number;
-    daysRemaining: number;
-    adAccount: { name: string; currency: string };
-  } | null;
 }
 
 interface TrendPoint {
@@ -55,6 +56,7 @@ export default function OverviewPage({ params }: { params: Promise<{ clientId: s
   const { clientId } = use(params);
   const [preset, setPreset] = useState<Preset>("last_7d");
   const [overview, setOverview] = useState<Overview | null>(null);
+  const [pacing, setPacing] = useState<PacingData | null>(null);
   const [trend, setTrend] = useState<TrendPoint[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -63,24 +65,39 @@ export default function OverviewPage({ params }: { params: Promise<{ clientId: s
     Promise.all([
       fetch(`/api/insights/overview?clientId=${clientId}&preset=${preset}`).then((r) => r.json()),
       fetch(`/api/insights/trend?clientId=${clientId}&preset=${preset}&metric=spend`).then((r) => r.json()),
-    ]).then(([overviewData, trendData]) => {
+      fetch(`/api/pacing?clientId=${clientId}`).then((r) => r.json()),
+    ]).then(([overviewData, trendData, pacingData]) => {
       setOverview(overviewData.overview ?? null);
       setTrend(trendData.trend ?? []);
+      // Use first snapshot from pacing API (may be from BudgetPacingSnapshot or synthetic)
+      const snap = pacingData?.snapshots?.[0] ?? overviewData.overview?.pacing ?? null;
+      setPacing(snap ? {
+        pacingStatus: snap.pacingStatus ?? "unknown",
+        spentToDate: Number(snap.spentToDate ?? 0),
+        monthBudget: snap.monthBudget != null ? Number(snap.monthBudget) : null,
+        projectedSpend: Number(snap.projectedSpend ?? 0),
+        daysElapsed: Number(snap.daysElapsed ?? 0),
+        daysRemaining: Number(snap.daysRemaining ?? 0),
+        adAccount: snap.adAccount ?? { name: "", currency: "USD" },
+      } : null);
       setLoading(false);
     });
   }, [clientId, preset]);
 
-  const pacing = overview?.pacing;
   const pacingPercent =
     pacing?.monthBudget && Number(pacing.monthBudget) > 0
       ? Math.round((Number(pacing.spentToDate) / Number(pacing.monthBudget)) * 100)
       : null;
 
+  // Handles both legacy (underspend/overspend) and new (underpacing/overpacing) status values
   const statusBadge: Record<string, { label: string; color: string }> = {
-    on_track: { label: "✓ On Track", color: "text-green-600 bg-green-50" },
-    underspend: { label: "⚠ Underspend", color: "text-yellow-700 bg-yellow-50" },
-    overspend: { label: "⚠ Overspend", color: "text-red-600 bg-red-50" },
-    unknown: { label: "—", color: "text-gray-500 bg-gray-50" },
+    on_track:    { label: "✓ On Track",    color: "text-green-600 bg-green-50" },
+    underpacing: { label: "⚠ Underpacing", color: "text-yellow-700 bg-yellow-50" },
+    overpacing:  { label: "⚠ Overpacing",  color: "text-red-600 bg-red-50" },
+    underspend:  { label: "⚠ Underspend",  color: "text-yellow-700 bg-yellow-50" },
+    overspend:   { label: "⚠ Overspend",   color: "text-red-600 bg-red-50" },
+    no_budget:   { label: "No Budget Set", color: "text-gray-500 bg-gray-50" },
+    unknown:     { label: "—",             color: "text-gray-500 bg-gray-50" },
   };
   const pacingBadge = pacing ? statusBadge[pacing.pacingStatus] ?? statusBadge.unknown : null;
   const currency = overview?.currency ?? "USD";
@@ -126,9 +143,9 @@ export default function OverviewPage({ params }: { params: Promise<{ clientId: s
             <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
               <div
                 className={`h-2 rounded-full transition-all ${
-                  pacing.pacingStatus === "overspend"
+                  pacing.pacingStatus === "overspend" || pacing.pacingStatus === "overpacing"
                     ? "bg-red-500"
-                    : pacing.pacingStatus === "underspend"
+                    : pacing.pacingStatus === "underspend" || pacing.pacingStatus === "underpacing"
                     ? "bg-yellow-400"
                     : "bg-green-500"
                 }`}
