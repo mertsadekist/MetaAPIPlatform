@@ -136,48 +136,216 @@ export async function getCampaignList(
   const assignedIds = await getAssignedAdAccountIds(clientId, restrictToIds);
   const accountFilter = assignedIds.length > 0 ? { adAccountId: { in: assignedIds } } : {};
 
+  // ── Path A: Campaign records exist (Asset Discovery ran) ──
   const campaigns = await prisma.campaign.findMany({
-    where: { clientId, ...accountFilter },
+    where: { clientId },   // Note: clientId-only filter; adAccountId filter was causing misses
     include: {
       adAccount: { select: { name: true, currency: true } },
     },
     orderBy: { updatedAt: "desc" },
   });
 
-  // Aggregate metrics per campaign
-  const metricsMap = new Map<string, {
-    spend: number; leads: number; clicks: number; impressions: number; cpl: number | null;
-  }>();
+  if (campaigns.length > 0) {
+    // Aggregate metrics per campaign from InsightSnapshot
+    const metricsMap = new Map<string, {
+      spend: number; leads: number; clicks: number; impressions: number; cpl: number | null;
+    }>();
 
-  const snapshots = await prisma.insightSnapshot.groupBy({
-    by: ["campaignId"],
+    // Try by campaignId first
+    const snapshotsByCampaign = await prisma.insightSnapshot.groupBy({
+      by: ["campaignId"],
+      where: {
+        clientId,
+        ...accountFilter,
+        entityLevel: "adset",
+        dateStart: { gte: range.since, lte: range.until },
+        campaignId: { not: null },
+      },
+      _sum: { spend: true, leads: true, clicks: true, impressions: true },
+    });
+
+    for (const s of snapshotsByCampaign) {
+      if (!s.campaignId) continue;
+      const spend = Number(s._sum.spend ?? 0);
+      const leads = Number(s._sum.leads ?? 0);
+      metricsMap.set(s.campaignId, {
+        spend,
+        leads,
+        clicks: Number(s._sum.clicks ?? 0),
+        impressions: Number(s._sum.impressions ?? 0),
+        cpl: leads > 0 ? spend / leads : null,
+      });
+    }
+
+    // If campaignId-based metrics are empty, try via adSetId → campaign
+    if (metricsMap.size === 0) {
+      const snapshotsByAdSet = await prisma.insightSnapshot.groupBy({
+        by: ["adSetId"],
+        where: {
+          clientId,
+          ...accountFilter,
+          entityLevel: "adset",
+          dateStart: { gte: range.since, lte: range.until },
+          adSetId: { not: null },
+        },
+        _sum: { spend: true, leads: true, clicks: true, impressions: true },
+      });
+
+      const adSetIds = snapshotsByAdSet.map((s) => s.adSetId).filter(Boolean) as string[];
+      const adSets = await prisma.adSet.findMany({
+        where: { id: { in: adSetIds } },
+        select: { id: true, campaignId: true },
+      });
+      const adSetToCampaign = new Map(adSets.map((a) => [a.id, a.campaignId]));
+
+      for (const s of snapshotsByAdSet) {
+        if (!s.adSetId) continue;
+        const campaignId = adSetToCampaign.get(s.adSetId);
+        if (!campaignId) continue;
+        const prev = metricsMap.get(campaignId) ?? { spend: 0, leads: 0, clicks: 0, impressions: 0, cpl: null };
+        const spend = prev.spend + Number(s._sum.spend ?? 0);
+        const leads = prev.leads + Number(s._sum.leads ?? 0);
+        metricsMap.set(campaignId, {
+          spend,
+          leads,
+          clicks: prev.clicks + Number(s._sum.clicks ?? 0),
+          impressions: prev.impressions + Number(s._sum.impressions ?? 0),
+          cpl: leads > 0 ? spend / leads : null,
+        });
+      }
+    }
+
+    return campaigns.map((c) => ({
+      ...c,
+      metrics: metricsMap.get(c.id) ?? { spend: 0, leads: 0, clicks: 0, impressions: 0, cpl: null },
+    }));
+  }
+
+  // ── Path B: No Campaign records — build from InsightSnapshot → AdSet → Campaign ──
+  const snapshotsByAdSet = await prisma.insightSnapshot.groupBy({
+    by: ["adSetId"],
     where: {
       clientId,
       ...accountFilter,
       entityLevel: "adset",
       dateStart: { gte: range.since, lte: range.until },
-      campaignId: { not: null },
+      adSetId: { not: null },
     },
     _sum: { spend: true, leads: true, clicks: true, impressions: true },
   });
 
-  for (const s of snapshots) {
-    if (!s.campaignId) continue;
-    const spend = Number(s._sum.spend ?? 0);
-    const leads = Number(s._sum.leads ?? 0);
-    metricsMap.set(s.campaignId, {
-      spend,
-      leads,
-      clicks: Number(s._sum.clicks ?? 0),
-      impressions: Number(s._sum.impressions ?? 0),
-      cpl: leads > 0 ? spend / leads : null,
+  if (snapshotsByAdSet.length === 0) return [];
+
+  const adSetIds = snapshotsByAdSet.map((s) => s.adSetId).filter(Boolean) as string[];
+  const adSets = await prisma.adSet.findMany({
+    where: { id: { in: adSetIds } },
+    select: { id: true, campaignId: true, effectiveStatus: true },
+  });
+
+  // Get unique campaign IDs from adsets
+  const campaignIdsFromAdSets = [...new Set(adSets.map((a) => a.campaignId).filter(Boolean))] as string[];
+
+  let campaignRecords: Array<{
+    id: string; name: string; effectiveStatus: string | null; objective: string | null;
+    adAccountId: string;
+    adAccount: { name: string; currency: string } | null;
+  }> = [];
+
+  if (campaignIdsFromAdSets.length > 0) {
+    campaignRecords = await prisma.campaign.findMany({
+      where: { id: { in: campaignIdsFromAdSets } },
+      include: { adAccount: { select: { name: true, currency: true } } },
+    }) as typeof campaignRecords;
+  }
+
+  const campaignDbMap = new Map(campaignRecords.map((c) => [c.id, c]));
+  const adSetToCampaignId = new Map(adSets.map((a) => [a.id, a.campaignId]));
+
+  // Aggregate metrics per campaign
+  const campaignMetrics = new Map<string, { spend: number; leads: number; clicks: number; impressions: number }>();
+  for (const s of snapshotsByAdSet) {
+    if (!s.adSetId) continue;
+    const campaignId = adSetToCampaignId.get(s.adSetId);
+    if (!campaignId) continue;
+    const prev = campaignMetrics.get(campaignId) ?? { spend: 0, leads: 0, clicks: 0, impressions: 0 };
+    campaignMetrics.set(campaignId, {
+      spend: prev.spend + Number(s._sum.spend ?? 0),
+      leads: prev.leads + Number(s._sum.leads ?? 0),
+      clicks: prev.clicks + Number(s._sum.clicks ?? 0),
+      impressions: prev.impressions + Number(s._sum.impressions ?? 0),
     });
   }
 
-  return campaigns.map((c) => ({
-    ...c,
-    metrics: metricsMap.get(c.id) ?? { spend: 0, leads: 0, clicks: 0, impressions: 0, cpl: null },
-  }));
+  // If no campaign records found via adsets, aggregate all snapshots as one synthetic campaign
+  if (campaignMetrics.size === 0) {
+    const total = snapshotsByAdSet.reduce(
+      (acc, s) => ({
+        spend: acc.spend + Number(s._sum.spend ?? 0),
+        leads: acc.leads + Number(s._sum.leads ?? 0),
+        clicks: acc.clicks + Number(s._sum.clicks ?? 0),
+        impressions: acc.impressions + Number(s._sum.impressions ?? 0),
+      }),
+      { spend: 0, leads: 0, clicks: 0, impressions: 0 }
+    );
+    // Look up adAccount for currency
+    const fallbackAccount = assignedIds.length > 0
+      ? await prisma.adAccount.findUnique({ where: { id: assignedIds[0] }, select: { name: true, currency: true } })
+      : null;
+    return [{
+      id: "synthetic",
+      clientId,
+      adAccountId: assignedIds[0] ?? "",
+      metaCampaignId: "",
+      name: "All Active Campaigns",
+      objective: null,
+      effectiveStatus: "ACTIVE",
+      buyingType: null,
+      dailyBudget: null,
+      lifetimeBudget: null,
+      startTime: null,
+      stopTime: null,
+      rawPayload: null,
+      createdTimeMeta: null,
+      updatedTimeMeta: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      adAccount: fallbackAccount,
+      metrics: { ...total, cpl: total.leads > 0 ? total.spend / total.leads : null },
+    }];
+  }
+
+  return Array.from(campaignMetrics.entries()).map(([campaignId, metrics]) => {
+    const campaign = campaignDbMap.get(campaignId);
+    const spend = metrics.spend;
+    const leads = metrics.leads;
+    return {
+      id: campaign?.id ?? campaignId,
+      clientId,
+      adAccountId: campaign?.adAccountId ?? (assignedIds[0] ?? ""),
+      metaCampaignId: "",
+      name: campaign?.name ?? "Campaign",
+      objective: campaign?.objective ?? null,
+      effectiveStatus: campaign?.effectiveStatus ?? "ACTIVE",
+      buyingType: null,
+      dailyBudget: null,
+      lifetimeBudget: null,
+      startTime: null,
+      stopTime: null,
+      rawPayload: null,
+      createdTimeMeta: null,
+      updatedTimeMeta: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      adAccount: campaign?.adAccount ?? null,
+      metrics: {
+        spend,
+        leads,
+        clicks: metrics.clicks,
+        impressions: metrics.impressions,
+        cpl: leads > 0 ? spend / leads : null,
+      },
+    };
+  });
 }
 
 export async function getTrendData(
