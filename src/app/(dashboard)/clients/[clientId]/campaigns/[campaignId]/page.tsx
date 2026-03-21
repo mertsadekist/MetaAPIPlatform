@@ -12,8 +12,8 @@ const STATUS_COLORS: Record<string, string> = {
   WITH_ISSUES: "bg-red-100 text-red-700",
 };
 
-function fmt(n: number, type: "currency" | "number" | "percent") {
-  if (type === "currency") return `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function fmt(n: number, type: "currency" | "number" | "percent", currency = "USD") {
+  if (type === "currency") return new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
   if (type === "percent") return `${n.toFixed(2)}%`;
   return n.toLocaleString();
 }
@@ -26,15 +26,19 @@ export default async function CampaignDetailPage({
   const { clientId, campaignId } = await params;
   await requireClientAccess(clientId);
 
-  const campaign = await prisma.campaign.findFirst({
-    where: { id: campaignId, clientId },
-    include: {
-      adSets: {
-        include: { ads: { select: { id: true, name: true, effectiveStatus: true } } },
-        orderBy: { name: "asc" },
+  const [campaign, clientRecord] = await Promise.all([
+    prisma.campaign.findFirst({
+      where: { id: campaignId, clientId },
+      include: {
+        adSets: {
+          include: { ads: { select: { id: true, name: true, effectiveStatus: true } } },
+          orderBy: { name: "asc" },
+        },
       },
-    },
-  });
+    }),
+    prisma.client.findUnique({ where: { id: clientId }, select: { currencyCode: true } }),
+  ]);
+  const clientCurrency = clientRecord?.currencyCode ?? "USD";
 
   if (!campaign) notFound();
 
@@ -66,14 +70,14 @@ export default async function CampaignDetailPage({
   const cpm = totals.impressions > 0 ? (totals.spend  / totals.impressions) * 1000 : null;
 
   const kpis = [
-    { label: "Spend (30d)",       value: fmt(totals.spend, "currency"),              color: "text-gray-900" },
-    { label: "Leads (30d)",       value: totals.leads.toLocaleString(),              color: "text-blue-600" },
-    { label: "CPL",               value: cpl != null ? fmt(cpl, "currency") : "—",  color: "text-purple-600" },
-    { label: "CPC",               value: cpc != null ? fmt(cpc, "currency") : "—",  color: "text-orange-600" },
-    { label: "CTR",               value: ctr != null ? fmt(ctr, "percent")  : "—",  color: "text-green-600" },
-    { label: "CPM",               value: cpm != null ? fmt(cpm, "currency") : "—",  color: "text-pink-600" },
-    { label: "Impressions (30d)", value: totals.impressions.toLocaleString(),        color: "text-gray-700" },
-    { label: "Reach (30d)",       value: totals.reach.toLocaleString(),              color: "text-gray-700" },
+    { label: "Spend (30d)",       value: fmt(totals.spend, "currency", clientCurrency),              color: "text-gray-900" },
+    { label: "Leads (30d)",       value: totals.leads.toLocaleString(),                             color: "text-blue-600" },
+    { label: "CPL",               value: cpl != null ? fmt(cpl, "currency", clientCurrency) : "—", color: "text-purple-600" },
+    { label: "CPC",               value: cpc != null ? fmt(cpc, "currency", clientCurrency) : "—", color: "text-orange-600" },
+    { label: "CTR",               value: ctr != null ? fmt(ctr, "percent")  : "—",                 color: "text-green-600" },
+    { label: "CPM",               value: cpm != null ? fmt(cpm, "currency", clientCurrency) : "—", color: "text-pink-600" },
+    { label: "Impressions (30d)", value: totals.impressions.toLocaleString(),                       color: "text-gray-700" },
+    { label: "Reach (30d)",       value: totals.reach.toLocaleString(),                             color: "text-gray-700" },
   ];
 
   return (
@@ -105,13 +109,13 @@ export default async function CampaignDetailPage({
           {campaign.dailyBudget && (
             <div className="text-right">
               <p className="text-xs text-gray-400">Daily Budget</p>
-              <p className="text-sm font-semibold text-gray-800">{fmt(Number(campaign.dailyBudget), "currency")}</p>
+              <p className="text-sm font-semibold text-gray-800">{fmt(Number(campaign.dailyBudget), "currency", clientCurrency)}</p>
             </div>
           )}
           {campaign.lifetimeBudget && (
             <div className="text-right">
               <p className="text-xs text-gray-400">Lifetime Budget</p>
-              <p className="text-sm font-semibold text-gray-800">{fmt(Number(campaign.lifetimeBudget), "currency")}</p>
+              <p className="text-sm font-semibold text-gray-800">{fmt(Number(campaign.lifetimeBudget), "currency", clientCurrency)}</p>
             </div>
           )}
         </div>

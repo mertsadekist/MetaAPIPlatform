@@ -89,15 +89,19 @@ export default function CreativeDetailPage({
 }) {
   const { clientId, creativeId } = use(params);
   const [data, setData] = useState<CreativeDetail | null>(null);
+  const [currency, setCurrency] = useState("USD");
   const [loading, setLoading] = useState(true);
   const [preset, setPreset] = useState("last_30d");
   const [chartMetric, setChartMetric] = useState<"spend" | "leads" | "clicks">("spend");
+
+  const fmtCurrency = (n: number, decimals = 0) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: decimals }).format(n);
 
   useEffect(() => {
     setLoading(true);
     fetch(`/api/insights/creatives/${creativeId}?preset=${preset}`)
       .then((r) => r.json())
-      .then((d) => { setData(d); setLoading(false); });
+      .then((d) => { setData(d); setCurrency(d.currency ?? "USD"); setLoading(false); });
   }, [creativeId, preset]);
 
   if (loading) {
@@ -232,9 +236,9 @@ export default function CreativeDetailPage({
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {[
-                { label: "Spend", value: `$${metrics.spend.toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
+                { label: "Spend", value: fmtCurrency(metrics.spend) },
                 { label: "Leads", value: metrics.leads.toLocaleString() },
-                { label: "CPL", value: metrics.cpl !== null ? `$${metrics.cpl.toFixed(2)}` : "—" },
+                { label: "CPL", value: metrics.cpl !== null ? fmtCurrency(metrics.cpl, 2) : "—" },
                 { label: "Clicks", value: metrics.clicks.toLocaleString() },
                 { label: "Impressions", value: metrics.impressions.toLocaleString() },
                 { label: "CTR", value: metrics.ctr !== null ? `${metrics.ctr.toFixed(2)}%` : "—" },
@@ -271,7 +275,7 @@ export default function CreativeDetailPage({
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} />
                   <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip formatter={(v) => [chartMetric === "spend" ? `$${Number(v).toFixed(2)}` : Number(v).toLocaleString(), chartMetric]} />
+                  <Tooltip formatter={(v) => [chartMetric === "spend" ? fmtCurrency(Number(v), 2) : Number(v).toLocaleString(), chartMetric]} />
                   <Line type="monotone" dataKey={chartMetric} stroke="#3b82f6" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>

@@ -50,17 +50,21 @@ type SortKey = "spend" | "leads" | "cpl" | "score";
 export default function CreativesPage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params);
   const [creatives, setCreatives] = useState<Creative[]>([]);
+  const [currency, setCurrency] = useState("USD");
   const [loading, setLoading] = useState(true);
   const [preset, setPreset] = useState("last_30d");
   const [sortKey, setSortKey] = useState<SortKey>("spend");
   const [fatigueFilter, setFatigueFilter] = useState<string>("all");
   const [view, setView] = useState<"grid" | "table">("grid");
 
+  const fmtCurrency = (n: number, decimals = 0) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: decimals }).format(n);
+
   useEffect(() => {
     setLoading(true);
     fetch(`/api/insights/creatives?clientId=${clientId}&preset=${preset}`)
       .then((r) => r.json())
-      .then((d) => { setCreatives(d.creatives ?? []); setLoading(false); });
+      .then((d) => { setCreatives(d.creatives ?? []); setCurrency(d.currency ?? "USD"); setLoading(false); });
   }, [clientId, preset]);
 
   const PRESETS = [
@@ -211,7 +215,7 @@ export default function CreativesPage({ params }: { params: Promise<{ clientId: 
                   )}
                   <div className="flex items-center justify-between mt-2 gap-2">
                     <div className="text-xs text-gray-600">
-                      <span className="font-medium">${c.metrics.spend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                      <span className="font-medium">{fmtCurrency(c.metrics.spend)}</span>
                       <span className="text-gray-400"> spend</span>
                     </div>
                     <div className="text-xs text-gray-600">
@@ -220,7 +224,7 @@ export default function CreativesPage({ params }: { params: Promise<{ clientId: 
                     </div>
                     {c.metrics.cpl !== null && (
                       <div className="text-xs text-gray-600">
-                        <span className="font-medium">${c.metrics.cpl.toFixed(2)}</span>
+                        <span className="font-medium">{fmtCurrency(c.metrics.cpl, 2)}</span>
                         <span className="text-gray-400"> CPL</span>
                       </div>
                     )}
@@ -293,11 +297,11 @@ export default function CreativesPage({ params }: { params: Promise<{ clientId: 
                       )}
                     </td>
                     <td className="px-4 py-3 text-right font-medium">
-                      ${c.metrics.spend.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      {fmtCurrency(c.metrics.spend)}
                     </td>
                     <td className="px-4 py-3 text-right">{c.metrics.leads.toLocaleString()}</td>
                     <td className="px-4 py-3 text-right">
-                      {c.metrics.cpl !== null ? `$${c.metrics.cpl.toFixed(2)}` : "—"}
+                      {c.metrics.cpl !== null ? fmtCurrency(c.metrics.cpl, 2) : "—"}
                     </td>
                     <td className="px-4 py-3 text-right text-gray-600">
                       {ctr !== null ? `${ctr}%` : "—"}

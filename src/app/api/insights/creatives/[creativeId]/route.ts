@@ -83,7 +83,14 @@ export async function GET(
     const totalClicks = trend.reduce((a, b) => a + b.clicks, 0);
     const totalImpressions = trend.reduce((a, b) => a + b.impressions, 0);
 
+    const clientRecord = await prisma.client.findUnique({
+      where: { id: creative.clientId },
+      select: { currencyCode: true },
+    });
+    const currency = clientRecord?.currencyCode ?? "USD";
+
     return NextResponse.json({
+      currency,
       creative: { ...creative, ads: adsEnriched },
       trend,
       metrics: {

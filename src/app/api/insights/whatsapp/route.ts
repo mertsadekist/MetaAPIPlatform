@@ -15,12 +15,16 @@ export async function GET(req: NextRequest) {
   const range = resolveDateRange(preset);
 
   // Fetch WA campaigns for this client
-  const waCampaigns = await prisma.whatsAppCampaign.findMany({
-    where: { clientId },
-    include: {
-      campaign: { select: { id: true, name: true, effectiveStatus: true, objective: true } },
-    },
-  });
+  const [waCampaigns, client] = await Promise.all([
+    prisma.whatsAppCampaign.findMany({
+      where: { clientId },
+      include: {
+        campaign: { select: { id: true, name: true, effectiveStatus: true, objective: true } },
+      },
+    }),
+    prisma.client.findUnique({ where: { id: clientId }, select: { currencyCode: true } }),
+  ]);
+  const currency = client?.currencyCode ?? "USD";
 
   if (waCampaigns.length > 0) {
     // ── Path A: WhatsAppCampaign records exist (Asset Discovery ran) ──
@@ -109,6 +113,7 @@ export async function GET(req: NextRequest) {
     );
 
     return NextResponse.json({
+      currency,
       campaigns,
       trend,
       totals: {
@@ -214,6 +219,7 @@ export async function GET(req: NextRequest) {
   );
 
   return NextResponse.json({
+    currency,
     campaigns,
     trend,
     totals: {

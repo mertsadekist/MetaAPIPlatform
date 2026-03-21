@@ -57,9 +57,13 @@ export default function WhatsappPage({ params }: { params: Promise<{ clientId: s
   const [campaigns, setCampaigns] = useState<WaCampaign[]>([]);
   const [totals, setTotals] = useState<Totals | null>(null);
   const [trend, setTrend] = useState<TrendPoint[]>([]);
+  const [currency, setCurrency] = useState("USD");
   const [loading, setLoading] = useState(true);
   const [preset, setPreset] = useState("last_30d");
   const [chartMetric, setChartMetric] = useState<"spend" | "messages" | "leads">("messages");
+
+  const fmtCurrency = (n: number, decimals = 0) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: decimals }).format(n);
 
   const PRESETS = [
     { value: "last_7d", label: "7D" },
@@ -76,6 +80,7 @@ export default function WhatsappPage({ params }: { params: Promise<{ clientId: s
         setCampaigns(d.campaigns ?? []);
         setTotals(d.totals ?? null);
         setTrend(d.trend ?? []);
+        setCurrency(d.currency ?? "USD");
         setLoading(false);
       });
   }, [clientId, preset]);
@@ -126,9 +131,9 @@ export default function WhatsappPage({ params }: { params: Promise<{ clientId: s
           {totals && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { label: "Total Spend", value: `$${totals.spend.toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
+                { label: "Total Spend", value: fmtCurrency(totals.spend) },
                 { label: "Messages Started", value: totals.messages.toLocaleString() },
-                { label: "Cost per Message", value: totals.costPerMessage !== null ? `$${totals.costPerMessage.toFixed(2)}` : "—" },
+                { label: "Cost per Message", value: totals.costPerMessage !== null ? fmtCurrency(totals.costPerMessage, 2) : "—" },
                 { label: "Leads from WA", value: totals.leads > 0 ? totals.leads.toLocaleString() : "—" },
               ].map(({ label, value }) => (
                 <div key={label} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
@@ -165,7 +170,7 @@ export default function WhatsappPage({ params }: { params: Promise<{ clientId: s
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip
                     formatter={(v) => [
-                      chartMetric === "spend" ? `$${Number(v).toFixed(2)}` : Number(v).toLocaleString(),
+                      chartMetric === "spend" ? fmtCurrency(Number(v), 2) : Number(v).toLocaleString(),
                       chartMetric,
                     ]}
                   />
@@ -225,19 +230,19 @@ export default function WhatsappPage({ params }: { params: Promise<{ clientId: s
                       )}
                     </td>
                     <td className="px-4 py-3 text-right font-medium">
-                      ${c.metrics.spend.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      {fmtCurrency(c.metrics.spend)}
                     </td>
                     <td className="px-4 py-3 text-right">
                       {c.metrics.messagesStarted > 0 ? c.metrics.messagesStarted.toLocaleString() : "—"}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {c.metrics.cpm !== null ? `$${c.metrics.cpm.toFixed(2)}` : "—"}
+                      {c.metrics.cpm !== null ? fmtCurrency(c.metrics.cpm, 2) : "—"}
                     </td>
                     <td className="px-4 py-3 text-right">
                       {c.metrics.leads > 0 ? c.metrics.leads.toLocaleString() : "—"}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {c.metrics.cpl !== null ? `$${c.metrics.cpl.toFixed(2)}` : "—"}
+                      {c.metrics.cpl !== null ? fmtCurrency(c.metrics.cpl, 2) : "—"}
                     </td>
                   </tr>
                 ))}
