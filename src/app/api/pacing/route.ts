@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
         const monthBudget = kpiTarget?.targetBudget ? Number(kpiTarget.targetBudget) : null;
 
         // Pacing status
-        let pacingStatus = "unknown";
+        let pacingStatus = "no_budget";
         let pacingPercent: number | null = null;
         if (monthBudget && monthBudget > 0) {
           const expectedSpend = (monthBudget / daysInMonth) * daysElapsed;
