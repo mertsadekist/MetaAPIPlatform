@@ -52,22 +52,35 @@ export default function BudgetPage({ params }: { params: Promise<{ clientId: str
   const { clientId } = use(params);
   const [snapshots, setSnapshots] = useState<PacingSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currency, setCurrency] = useState("USD");
 
   useEffect(() => {
+    // Fetch client currency
+    fetch(`/api/clients/${clientId}`)
+      .then((r) => r.json())
+      .then((d) => { if (d?.currencyCode) setCurrency(d.currencyCode); })
+      .catch(() => {});
+    // Fetch pacing data
     fetch(`/api/pacing?clientId=${clientId}`)
       .then((r) => r.json())
       .then((d) => {
-        setSnapshots((d.snapshots ?? []).map((s: Record<string, unknown>) => ({
+        const snaps = (d.snapshots ?? []).map((s: Record<string, unknown>) => ({
           ...s,
           monthBudget:    s.monthBudget    != null ? Number(s.monthBudget)    : null,
           spentToDate:    s.spentToDate    != null ? Number(s.spentToDate)    : null,
           projectedSpend: s.projectedSpend != null ? Number(s.projectedSpend) : null,
           dailyRunRate:   s.dailyRunRate   != null ? Number(s.dailyRunRate)   : null,
           pacingPercent:  s.pacingPercent  != null ? Number(s.pacingPercent)  : null,
-        })));
+        }));
+        setSnapshots(snaps);
+        // Use currency from first adAccount if available
+        if (snaps[0]?.adAccount?.currency) setCurrency(snaps[0].adAccount.currency);
         setLoading(false);
       });
   }, [clientId]);
+
+  const fmt = (n: number) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 2 }).format(n);
 
   // Aggregate totals
   const totalBudget   = snapshots.reduce((s, r) => s + (r.monthBudget ?? 0), 0);
@@ -88,9 +101,9 @@ export default function BudgetPage({ params }: { params: Promise<{ clientId: str
       {/* Monthly summary strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Monthly Budget",     value: totalBudget   > 0 ? `$${totalBudget.toLocaleString("en", { minimumFractionDigits: 2 })}` : "—" },
-          { label: "Spent to Date",      value: totalSpent    > 0 ? `$${totalSpent.toLocaleString("en", { minimumFractionDigits: 2 })}` : "$0.00" },
-          { label: "Projected Month-End",value: totalProjected > 0 ? `$${totalProjected.toLocaleString("en", { minimumFractionDigits: 2 })}` : "—" },
+          { label: "Monthly Budget",     value: totalBudget   > 0 ? fmt(totalBudget) : "—" },
+          { label: "Spent to Date",      value: fmt(totalSpent) },
+          { label: "Projected Month-End",value: totalProjected > 0 ? fmt(totalProjected) : "—" },
           { label: "Budget Consumed",    value: overallPct != null ? `${overallPct.toFixed(1)}%` : "—" },
         ].map((kpi) => (
           <div key={kpi.label} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
@@ -139,9 +152,9 @@ export default function BudgetPage({ params }: { params: Promise<{ clientId: str
                 {/* Metrics grid */}
                 <div className="grid grid-cols-3 gap-3 text-center mb-3">
                   {[
-                    { label: "Budget",    value: snap.monthBudget    != null ? `$${snap.monthBudget.toFixed(0)}` : "—" },
-                    { label: "Spent",     value: snap.spentToDate    != null ? `$${snap.spentToDate.toFixed(0)}`  : "—" },
-                    { label: "Projected", value: snap.projectedSpend != null ? `$${snap.projectedSpend.toFixed(0)}` : "—" },
+                    { label: "Budget",    value: snap.monthBudget    != null ? fmt(snap.monthBudget)    : "—" },
+                    { label: "Spent",     value: snap.spentToDate    != null ? fmt(snap.spentToDate)    : "—" },
+                    { label: "Projected", value: snap.projectedSpend != null ? fmt(snap.projectedSpend) : "—" },
                   ].map((m) => (
                     <div key={m.label} className="bg-gray-50 rounded-lg px-2 py-2">
                       <p className="text-xs text-gray-400">{m.label}</p>
@@ -155,12 +168,12 @@ export default function BudgetPage({ params }: { params: Promise<{ clientId: str
                 <div className="flex justify-between text-xs text-gray-400 mt-2.5">
                   <span>
                     Daily run rate: <span className="text-gray-600 font-medium">
-                      {snap.dailyRunRate != null ? `$${snap.dailyRunRate.toFixed(2)}/day` : "—"}
+                      {snap.dailyRunRate != null ? `${fmt(snap.dailyRunRate)}/day` : "—"}
                     </span>
                   </span>
                   <span>
                     Remaining budget: <span className={`font-medium ${remaining >= 0 ? "text-gray-600" : "text-red-500"}`}>
-                      {snap.monthBudget != null ? `$${Math.abs(remaining).toFixed(2)}${remaining < 0 ? " over" : ""}` : "—"}
+                      {snap.monthBudget != null ? `${fmt(Math.abs(remaining))}${remaining < 0 ? " over" : ""}` : "—"}
                     </span>
                   </span>
                 </div>

@@ -195,7 +195,7 @@ export async function getTrendData(
       clientId,
       ...accountFilter,
       entityLevel: "adset",
-      granularity: "daily",
+      granularity: "hourly",
       dateStart: { gte: range.since, lte: range.until },
     },
     select: { dateStart: true, spend: true, leads: true, cpl: true },

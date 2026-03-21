@@ -164,7 +164,7 @@ export default function OverviewPage({ params }: { params: Promise<{ clientId: s
             <KpiCard label="ROAS" value={overview?.roas ?? null} format="multiplier" />
             <KpiCard label="Impressions" value={overview?.impressions ?? null} format="number" />
             <KpiCard label="Clicks" value={overview?.clicks ?? null} format="number" />
-            <KpiCard label="CTR" value={overview?.ctr != null ? overview.ctr * 100 : null} format="percent" />
+            <KpiCard label="CTR" value={overview?.ctr != null ? overview.ctr : null} format="percent" />
             <KpiCard label="CPM" value={overview?.cpm ?? null} format="currency" currency={currency} isPositiveWhenUp={false} />
           </div>
 

@@ -89,37 +89,52 @@ export async function runHourlySync(clientId: string): Promise<JobResult> {
           ? (await prisma.adSet.findUnique({ where: { metaAdSetId: String(row.adset_id) } }))?.id
           : undefined;
 
-        await prisma.insightSnapshot.create({
-          data: {
-            clientId,
-            adAccountId: account.id,
-            campaignId,
-            adSetId,
-            entityLevel: "adset",
-            granularity: "hourly",
-            dateStart: new Date(String(row.date_start)),
-            dateStop: new Date(String(row.date_stop)),
-            spend,
-            impressions,
-            reach,
-            frequency,
-            clicks,
-            inlineLinkClicks,
-            ctr,
-            cpc,
-            cpm,
-            leads: derived.leads,
-            purchases: derived.purchases,
-            purchaseValue: derived.purchaseValue,
-            messagesStarted: derived.messagesStarted,
-            cpl: derived.cpl,
-            roas: derived.roas,
-            costPerMessage: derived.costPerMessage,
-            conversionRate: derived.conversionRate,
-            actionsJson: (actions as object) ?? null,
-            actionValuesJson: (actionValues as object) ?? null,
-          },
-        });
+        // Use delete-then-create so each sync REPLACES the previous cumulative
+        // snapshot for the same (account, adSet, date) — prevents inflated totals
+        const dateStart = new Date(String(row.date_start));
+        const dateStop  = new Date(String(row.date_stop));
+        await prisma.$transaction([
+          prisma.insightSnapshot.deleteMany({
+            where: {
+              adAccountId: account.id,
+              adSetId:     adSetId ?? null,
+              dateStart,
+              entityLevel: "adset",
+              granularity: "hourly",
+            },
+          }),
+          prisma.insightSnapshot.create({
+            data: {
+              clientId,
+              adAccountId: account.id,
+              campaignId,
+              adSetId,
+              entityLevel: "adset",
+              granularity: "hourly",
+              dateStart,
+              dateStop,
+              spend,
+              impressions,
+              reach,
+              frequency,
+              clicks,
+              inlineLinkClicks,
+              ctr,
+              cpc,
+              cpm,
+              leads: derived.leads,
+              purchases: derived.purchases,
+              purchaseValue: derived.purchaseValue,
+              messagesStarted: derived.messagesStarted,
+              cpl: derived.cpl,
+              roas: derived.roas,
+              costPerMessage: derived.costPerMessage,
+              conversionRate: derived.conversionRate,
+              actionsJson: (actions as object) ?? null,
+              actionValuesJson: (actionValues as object) ?? null,
+            },
+          }),
+        ]);
 
         itemsProcessed++;
       }

@@ -87,8 +87,16 @@ function KpiTargetSection({ clientId }: { clientId: string }) {
     targetBudget: "", targetLeads: "", targetCpl: "", targetRoas: "", targetCpql: "", notes: "",
   });
   const [saved, setSaved] = useState(false);
+  const [currency, setCurrency] = useState("USD");
+
+  const fmtC = (n: number) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 2 }).format(n);
 
   useEffect(() => {
+    fetch(`/api/clients/${clientId}`)
+      .then((r) => r.json())
+      .then((d) => { if (d?.currencyCode) setCurrency(d.currencyCode); })
+      .catch(() => {});
     fetch(`/api/clients/${clientId}/kpi-targets`)
       .then((r) => r.json())
       .then((d) => {
@@ -165,11 +173,11 @@ function KpiTargetSection({ clientId }: { clientId: string }) {
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {[
-            { key: "targetBudget", label: "Monthly Budget ($)" },
+            { key: "targetBudget", label: `Monthly Budget (${currency})` },
             { key: "targetLeads",  label: "Target Leads" },
-            { key: "targetCpl",    label: "Target CPL ($)" },
+            { key: "targetCpl",    label: `Target CPL (${currency})` },
             { key: "targetRoas",   label: "Target ROAS" },
-            { key: "targetCpql",   label: "Target CPQL ($)" },
+            { key: "targetCpql",   label: `Target CPQL (${currency})` },
           ].map(({ key, label }) => (
             <div key={key}>
               <label className="block text-xs text-gray-500 mb-1">{label}</label>
@@ -235,11 +243,11 @@ function KpiTargetSection({ clientId }: { clientId: string }) {
                   });
                 }}>
                   <td className="px-4 py-2.5 font-medium">{t.monthYear}</td>
-                  <td className="px-4 py-2.5">{t.targetBudget ? `$${Number(t.targetBudget).toLocaleString()}` : "—"}</td>
+                  <td className="px-4 py-2.5">{t.targetBudget ? fmtC(Number(t.targetBudget)) : "—"}</td>
                   <td className="px-4 py-2.5">{t.targetLeads ?? "—"}</td>
-                  <td className="px-4 py-2.5">{t.targetCpl ? `$${Number(t.targetCpl).toFixed(2)}` : "—"}</td>
+                  <td className="px-4 py-2.5">{t.targetCpl ? fmtC(Number(t.targetCpl)) : "—"}</td>
                   <td className="px-4 py-2.5">{t.targetRoas ? `${Number(t.targetRoas).toFixed(2)}x` : "—"}</td>
-                  <td className="px-4 py-2.5">{t.targetCpql ? `$${Number(t.targetCpql).toFixed(2)}` : "—"}</td>
+                  <td className="px-4 py-2.5">{t.targetCpql ? fmtC(Number(t.targetCpql)) : "—"}</td>
                 </tr>
               ))}
             </tbody>

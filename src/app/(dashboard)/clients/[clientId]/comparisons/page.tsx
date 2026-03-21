@@ -30,18 +30,22 @@ interface SavedComparison {
   createdAt: string;
 }
 
-const METRICS: { key: keyof PeriodMetrics; label: string; format: (v: number | null) => string; lowerIsBetter?: boolean }[] = [
-  { key: "spend",           label: "Total Spend",       format: (v) => v !== null ? `$${v.toFixed(2)}` : "—" },
-  { key: "leads",           label: "Leads",             format: (v) => v !== null ? v.toLocaleString() : "—" },
-  { key: "clicks",          label: "Clicks",            format: (v) => v !== null ? v.toLocaleString() : "—" },
-  { key: "impressions",     label: "Impressions",       format: (v) => v !== null ? v.toLocaleString() : "—" },
-  { key: "reach",           label: "Reach",             format: (v) => v !== null ? v.toLocaleString() : "—" },
-  { key: "cpl",             label: "CPL",               format: (v) => v !== null ? `$${v.toFixed(2)}` : "—",  lowerIsBetter: true },
-  { key: "cpc",             label: "CPC",               format: (v) => v !== null ? `$${v.toFixed(3)}` : "—",  lowerIsBetter: true },
-  { key: "ctr",             label: "CTR",               format: (v) => v !== null ? `${v.toFixed(2)}%` : "—" },
-  { key: "cpm",             label: "CPM",               format: (v) => v !== null ? `$${v.toFixed(2)}` : "—",  lowerIsBetter: true },
-  { key: "activeCampaigns", label: "Active Campaigns",  format: (v) => v !== null ? String(v) : "—" },
-];
+type MetricDef = { key: keyof PeriodMetrics; label: string; format: (v: number | null) => string; lowerIsBetter?: boolean };
+
+function buildMetrics(fmtC: (v: number, d?: number) => string): MetricDef[] {
+  return [
+    { key: "spend",           label: "Total Spend",       format: (v) => v !== null ? fmtC(v, 2) : "—" },
+    { key: "leads",           label: "Leads",             format: (v) => v !== null ? v.toLocaleString() : "—" },
+    { key: "clicks",          label: "Clicks",            format: (v) => v !== null ? v.toLocaleString() : "—" },
+    { key: "impressions",     label: "Impressions",       format: (v) => v !== null ? v.toLocaleString() : "—" },
+    { key: "reach",           label: "Reach",             format: (v) => v !== null ? v.toLocaleString() : "—" },
+    { key: "cpl",             label: "CPL",               format: (v) => v !== null ? fmtC(v, 2) : "—",  lowerIsBetter: true },
+    { key: "cpc",             label: "CPC",               format: (v) => v !== null ? fmtC(v, 3) : "—",  lowerIsBetter: true },
+    { key: "ctr",             label: "CTR",               format: (v) => v !== null ? `${v.toFixed(2)}%` : "—" },
+    { key: "cpm",             label: "CPM",               format: (v) => v !== null ? fmtC(v, 2) : "—",  lowerIsBetter: true },
+    { key: "activeCampaigns", label: "Active Campaigns",  format: (v) => v !== null ? String(v) : "—" },
+  ];
+}
 
 function DeltaBadge({ delta, lowerIsBetter }: { delta: number | null; lowerIsBetter?: boolean }) {
   if (delta === null) return <span className="text-gray-400 text-xs">—</span>;
@@ -98,8 +102,18 @@ export default function ComparisonsPage({ params }: { params: Promise<{ clientId
   const [saving, setSaving] = useState(false);
   const [savedList, setSavedList] = useState<SavedComparison[]>([]);
   const [showSaved, setShowSaved] = useState(false);
+  const [currency, setCurrency] = useState("USD");
+
+  const fmtCurrency = (v: number, decimals = 2) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(v);
+
+  const METRICS = buildMetrics(fmtCurrency);
 
   useEffect(() => {
+    fetch(`/api/clients/${clientId}`)
+      .then((r) => r.json())
+      .then((d) => { if (d?.currencyCode) setCurrency(d.currencyCode); })
+      .catch(() => {});
     fetch(`/api/comparisons?clientId=${clientId}`)
       .then((r) => r.json())
       .then((d) => setSavedList(d.saved ?? []));

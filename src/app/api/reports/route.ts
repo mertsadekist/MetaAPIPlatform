@@ -69,7 +69,7 @@ async function generateReport(reportId: string, clientId: string, since: string,
 
     const range = { since: new Date(since), until: new Date(until) };
 
-    const [overview, campaigns] = await Promise.all([
+    const [overview, campaigns, client] = await Promise.all([
       prisma.insightSnapshot.aggregate({
         where: { clientId, entityLevel: "adset", dateStart: { gte: range.since, lte: range.until } },
         _sum: { spend: true, leads: true, clicks: true, impressions: true, messagesStarted: true },
@@ -78,8 +78,10 @@ async function generateReport(reportId: string, clientId: string, since: string,
         where: { clientId },
         include: { adAccount: { select: { name: true } } },
       }),
+      prisma.client.findUnique({ where: { id: clientId }, select: { currencyCode: true } }),
     ]);
 
+    const currency = client?.currencyCode ?? "USD";
     const spend = Number(overview._sum.spend ?? 0);
     const leads = Number(overview._sum.leads ?? 0);
 
@@ -90,6 +92,7 @@ async function generateReport(reportId: string, clientId: string, since: string,
       impressions: Number(overview._sum.impressions ?? 0),
       cpl: leads > 0 ? spend / leads : null,
       campaignCount: campaigns.length,
+      currency,
       since,
       until,
     };
@@ -112,6 +115,10 @@ async function generateReport(reportId: string, clientId: string, since: string,
 }
 
 function buildReportHtml(summary: Record<string, unknown>, since: string, until: string): string {
+  const currency = String(summary.currency ?? "USD");
+  const fmtC = (n: number, dec = 0) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(n);
+
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>Performance Report ${since} – ${until}</title>
@@ -126,9 +133,9 @@ h1{font-size:22px;font-weight:700}
 <h1>Performance Report</h1>
 <p style="color:#6b7280">${since} – ${until}</p>
 <div class="kpi-grid">
-  <div class="kpi"><div class="kpi-label">Total Spend</div><div class="kpi-value">$${Number(summary.spend).toLocaleString(undefined,{maximumFractionDigits:0})}</div></div>
+  <div class="kpi"><div class="kpi-label">Total Spend</div><div class="kpi-value">${fmtC(Number(summary.spend))}</div></div>
   <div class="kpi"><div class="kpi-label">Leads</div><div class="kpi-value">${Number(summary.leads).toLocaleString()}</div></div>
-  <div class="kpi"><div class="kpi-label">CPL</div><div class="kpi-value">${summary.cpl !== null ? `$${Number(summary.cpl).toFixed(2)}` : '—'}</div></div>
+  <div class="kpi"><div class="kpi-label">CPL</div><div class="kpi-value">${summary.cpl !== null ? fmtC(Number(summary.cpl), 2) : '—'}</div></div>
   <div class="kpi"><div class="kpi-label">Clicks</div><div class="kpi-value">${Number(summary.clicks).toLocaleString()}</div></div>
   <div class="kpi"><div class="kpi-label">Impressions</div><div class="kpi-value">${Number(summary.impressions).toLocaleString()}</div></div>
   <div class="kpi"><div class="kpi-label">Campaigns</div><div class="kpi-value">${Number(summary.campaignCount)}</div></div>
