@@ -69,7 +69,6 @@ export async function getClientOverview(
         purchaseValue: true,
         messagesStarted: true,
       },
-      _avg: { ctr: true, cpc: true, cpm: true },
     }),
 
     // Previous equal period for delta
@@ -117,9 +116,9 @@ export async function getClientOverview(
     messagesStarted: Number(current._sum.messagesStarted ?? 0),
     cpl,
     roas,
-    ctr: Number(current._avg.ctr ?? 0),
-    cpc: Number(current._avg.cpc ?? 0),
-    cpm: Number(current._avg.cpm ?? 0),
+    ctr: Number(current._sum.impressions ?? 0) > 0 ? (Number(current._sum.clicks ?? 0) / Number(current._sum.impressions ?? 0)) * 100 : 0,
+    cpc: Number(current._sum.clicks ?? 0) > 0 ? spend / Number(current._sum.clicks ?? 0) : 0,
+    cpm: Number(current._sum.impressions ?? 0) > 0 ? (spend / Number(current._sum.impressions ?? 0)) * 1000 : 0,
     deltas: {
       spend: prevSpend > 0 ? ((spend - prevSpend) / prevSpend) * 100 : null,
       leads: prevLeads > 0 ? ((leads - prevLeads) / prevLeads) * 100 : null,
