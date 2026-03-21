@@ -39,7 +39,7 @@ export async function runCreativeFatigue(clientId: string): Promise<JobResult> {
         where: {
           clientId,
           creativeId: creative.id,
-          granularity: "daily",
+          granularity: "hourly",
           dateStart: { gte: day7ago },
         },
         _sum: { impressions: true, reach: true, clicks: true, spend: true },
@@ -54,7 +54,7 @@ export async function runCreativeFatigue(clientId: string): Promise<JobResult> {
         where: {
           clientId,
           creativeId: creative.id,
-          granularity: "daily",
+          granularity: "hourly",
           dateStart: { gte: day14ago, lt: day7ago },
         },
         _avg: { frequency: true, ctr: true },

@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
       clientId,
       entityLevel: "adset",
       campaignId: { in: campaignIds },
-      granularity: "daily",
+      granularity: "hourly",
       dateStart: { gte: range.since, lte: range.until },
     },
     select: { dateStart: true, spend: true, messagesStarted: true, leads: true },

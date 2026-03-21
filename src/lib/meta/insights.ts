@@ -61,8 +61,9 @@ export function extractActionValue(
 }
 
 // WhatsApp-specific action types
+// Meta API returns these under the "onsite_conversion." namespace
 export const WA_ACTIONS = {
-  CONVERSATION_STARTED: "messaging_conversation_started_7d",
+  CONVERSATION_STARTED: "onsite_conversion.messaging_conversation_started_7d",
   FIRST_REPLY: "onsite_conversion.messaging_first_reply",
 } as const;
 

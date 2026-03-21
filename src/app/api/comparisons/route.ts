@@ -24,9 +24,9 @@ async function getPeriodMetrics(
 ) {
   const where = {
     clientId,
-    dateStart: { gte: since },
-    dateStop: { lte: until },
-    entityLevel: "account",
+    dateStart: { gte: since, lte: until },
+    entityLevel: "adset",
+    granularity: "hourly",
     ...(campaignIds?.length ? { campaignId: { in: campaignIds } } : {}),
   };
 
