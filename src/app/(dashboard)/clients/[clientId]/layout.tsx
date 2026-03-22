@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import prisma from "@/lib/db/client";
 import { ClientSidebar } from "@/components/layout/ClientSidebar";
 import { NotificationBell } from "@/components/ui/NotificationBell";
+import { RefreshButton } from "@/components/ui/RefreshButton";
 
 export default async function ClientPortalLayout({
   children,
@@ -45,7 +46,8 @@ export default async function ClientPortalLayout({
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top header bar */}
-        <header className="h-12 bg-white border-b border-gray-200 flex items-center justify-end px-6 flex-shrink-0">
+        <header className="h-12 bg-white border-b border-gray-200 flex items-center justify-end gap-3 px-6 flex-shrink-0">
+          <RefreshButton clientId={clientId} />
           <NotificationBell clientId={clientId} />
         </header>
         <main className="flex-1 overflow-auto">
