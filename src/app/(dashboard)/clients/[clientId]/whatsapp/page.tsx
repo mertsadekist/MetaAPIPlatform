@@ -90,7 +90,7 @@ export default function WhatsappPage({ params }: { params: Promise<{ clientId: s
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold">WhatsApp Intelligence</h1>
+          <h1 className="text-2xl font-bold text-gray-900">WhatsApp Intelligence</h1>
           <p className="text-sm text-gray-500 mt-0.5">Click-to-WhatsApp campaign performance & CPQL</p>
         </div>
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1">

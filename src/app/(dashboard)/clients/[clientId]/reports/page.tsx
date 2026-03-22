@@ -92,7 +92,7 @@ export default function ReportsPage({ params }: { params: Promise<{ clientId: st
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold">Reports</h1>
+      <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
 
       {/* Generate form */}
       <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">

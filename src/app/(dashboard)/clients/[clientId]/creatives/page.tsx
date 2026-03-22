@@ -93,7 +93,7 @@ export default function CreativesPage({ params }: { params: Promise<{ clientId: 
     <div className="p-6 space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold">Creatives</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Creatives</h1>
         <div className="flex items-center gap-2 flex-wrap">
           {/* Period presets */}
           <div className="flex gap-1 bg-gray-100 rounded-lg p-1">

@@ -108,7 +108,7 @@ export default function OverviewPage({ params }: { params: Promise<{ clientId: s
     <div className="p-6 space-y-6 max-w-7xl">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Performance Overview</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Performance Overview</h1>
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
           {PRESETS.map((p) => (
             <button

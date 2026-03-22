@@ -161,7 +161,7 @@ export default function ComparisonsPage({ params }: { params: Promise<{ clientId
     <div className="p-6 space-y-6">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Period Comparisons</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Period Comparisons</h1>
           <p className="text-sm text-gray-500 mt-1">Compare performance metrics across two date ranges</p>
         </div>
         {savedList.length > 0 && (

@@ -51,7 +51,7 @@ export default function SettingsPage({ params }: { params: Promise<{ clientId: s
 
   return (
     <div className="p-6 space-y-5">
-      <h1 className="text-2xl font-bold">Settings</h1>
+      <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
 
       {/* Tab bar */}
       <div className="border-b border-gray-200 flex gap-0">

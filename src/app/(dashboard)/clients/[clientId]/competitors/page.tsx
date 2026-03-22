@@ -84,7 +84,7 @@ export default function CompetitorsPage({ params }: { params: Promise<{ clientId
     <div className="p-6 space-y-6">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Competitor Intelligence</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Competitor Intelligence</h1>
           <p className="text-sm text-gray-500 mt-1">Track competitor ad activity from Meta Ad Library</p>
         </div>
         <button
