@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { use } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { RefreshCw, Search, AlertCircle, CheckCircle2 } from "lucide-react";
 
 interface Creative {
   id: string;
@@ -46,29 +47,71 @@ const SCORE_COLOR = (s: number | null) => {
 };
 
 type SortKey = "spend" | "leads" | "cpl" | "score";
+type DiscoverState = "idle" | "running" | "success" | "error";
 
 export default function CreativesPage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params);
-  const [creatives, setCreatives] = useState<Creative[]>([]);
-  const [currency, setCurrency] = useState("USD");
-  const [loading, setLoading] = useState(true);
-  const [preset, setPreset] = useState("last_30d");
-  const [sortKey, setSortKey] = useState<SortKey>("spend");
+  const [creatives, setCreatives]     = useState<Creative[]>([]);
+  const [currency, setCurrency]       = useState("USD");
+  const [loading, setLoading]         = useState(true);
+  const [preset, setPreset]           = useState("last_30d");
+  const [sortKey, setSortKey]         = useState<SortKey>("spend");
   const [fatigueFilter, setFatigueFilter] = useState<string>("all");
-  const [view, setView] = useState<"grid" | "table">("grid");
+  const [view, setView]               = useState<"grid" | "table">("grid");
+
+  // Discovery state
+  const [discoverState, setDiscoverState] = useState<DiscoverState>("idle");
+  const [discoverMsg, setDiscoverMsg]     = useState("");
 
   const fmtCurrency = (n: number, decimals = 0) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: decimals }).format(n);
 
-  useEffect(() => {
+  const fetchCreatives = useCallback(() => {
     setLoading(true);
     fetch(`/api/insights/creatives?clientId=${clientId}&preset=${preset}`)
       .then((r) => r.json())
-      .then((d) => { setCreatives(d.creatives ?? []); setCurrency(d.currency ?? "USD"); setLoading(false); });
+      .then((d) => {
+        setCreatives(d.creatives ?? []);
+        setCurrency(d.currency ?? "USD");
+        setLoading(false);
+      });
   }, [clientId, preset]);
 
+  useEffect(() => {
+    fetchCreatives();
+  }, [fetchCreatives]);
+
+  async function runDiscovery() {
+    if (discoverState === "running") return;
+    setDiscoverState("running");
+    setDiscoverMsg("");
+
+    try {
+      const res = await fetch(`/api/clients/${clientId}/discover`, { method: "POST" });
+      const data = await res.json();
+
+      if (data.success || data.itemsProcessed > 0) {
+        setDiscoverMsg(`${data.itemsProcessed} ads discovered`);
+        setDiscoverState("success");
+        // Refresh creatives list after discovery
+        setTimeout(() => {
+          fetchCreatives();
+          setDiscoverState("idle");
+        }, 1500);
+      } else {
+        setDiscoverMsg(data.error ?? "Discovery failed");
+        setDiscoverState("error");
+        setTimeout(() => setDiscoverState("idle"), 5000);
+      }
+    } catch {
+      setDiscoverMsg("Network error");
+      setDiscoverState("error");
+      setTimeout(() => setDiscoverState("idle"), 5000);
+    }
+  }
+
   const PRESETS = [
-    { value: "last_7d", label: "7D" },
+    { value: "last_7d",  label: "7D" },
     { value: "last_14d", label: "14D" },
     { value: "last_30d", label: "30D" },
     { value: "last_90d", label: "90D" },
@@ -89,12 +132,46 @@ export default function CreativesPage({ params }: { params: Promise<{ clientId: 
     }
   });
 
+  // Discover button UI
+  const DiscoverBtn = () => (
+    <button
+      onClick={runDiscovery}
+      disabled={discoverState === "running"}
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all
+        ${discoverState === "running"
+          ? "border-blue-200 bg-blue-50 text-blue-500 cursor-not-allowed"
+          : discoverState === "success"
+          ? "border-green-200 bg-green-50 text-green-600"
+          : discoverState === "error"
+          ? "border-red-200 bg-red-50 text-red-500"
+          : "border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 cursor-pointer"
+        }`}
+    >
+      {discoverState === "success" ? (
+        <CheckCircle2 className="w-3.5 h-3.5" />
+      ) : discoverState === "error" ? (
+        <AlertCircle className="w-3.5 h-3.5" />
+      ) : (
+        <Search className={`w-3.5 h-3.5 ${discoverState === "running" ? "animate-pulse" : ""}`} />
+      )}
+      <span>
+        {discoverState === "running" ? "Syncing…"
+          : discoverState === "success" ? discoverMsg || "Done"
+          : discoverState === "error" ? "Failed"
+          : "Sync Creatives"}
+      </span>
+    </button>
+  );
+
   return (
     <div className="p-6 space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-gray-900">Creatives</h1>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Sync button */}
+          <DiscoverBtn />
+
           {/* Period presets */}
           <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
             {PRESETS.map((p) => (
@@ -152,15 +229,39 @@ export default function CreativesPage({ params }: { params: Promise<{ clientId: 
         </div>
       </div>
 
-      {loading ? (
+      {loading || discoverState === "running" ? (
         <div className={view === "grid" ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" : "space-y-3"}>
-          {[...Array(8)].map((_, i) => (
-            <div key={i} className="bg-gray-100 rounded-xl h-56 animate-pulse" />
-          ))}
+          {discoverState === "running" ? (
+            <div className="col-span-4 bg-white border border-blue-100 rounded-xl p-14 text-center shadow-sm">
+              <RefreshCw className="w-8 h-8 text-blue-400 animate-spin mx-auto mb-4" />
+              <p className="text-gray-700 font-medium">Syncing creatives from Meta…</p>
+              <p className="text-gray-400 text-sm mt-1">Fetching campaigns → ad sets → ads → creatives</p>
+            </div>
+          ) : (
+            [...Array(8)].map((_, i) => (
+              <div key={i} className="bg-gray-100 rounded-xl h-56 animate-pulse" />
+            ))
+          )}
         </div>
       ) : sorted.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
-          <p className="text-gray-500 text-sm">No creatives found. Run Asset Discovery to sync creatives from Meta.</p>
+        /* Empty state with sync CTA */
+        <div className="bg-white border border-gray-200 rounded-xl p-14 text-center shadow-sm">
+          <div className="text-4xl mb-4">🎨</div>
+          <p className="text-gray-700 font-semibold text-base mb-1">No creatives found</p>
+          <p className="text-gray-400 text-sm mb-6">
+            Sync from Meta to pull your ads and creative assets into the platform.
+          </p>
+          <button
+            onClick={runDiscovery}
+            disabled={discoverState === "running"}
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
+          >
+            <Search className="w-4 h-4" />
+            Sync Creatives from Meta
+          </button>
+          {discoverState === "error" && discoverMsg && (
+            <p className="text-red-500 text-xs mt-3">{discoverMsg}</p>
+          )}
         </div>
       ) : view === "grid" ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -296,9 +397,7 @@ export default function CreativesPage({ params }: { params: Promise<{ clientId: 
                         <span className="text-gray-400">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right font-medium">
-                      {fmtCurrency(c.metrics.spend)}
-                    </td>
+                    <td className="px-4 py-3 text-right font-medium">{fmtCurrency(c.metrics.spend)}</td>
                     <td className="px-4 py-3 text-right">{c.metrics.leads.toLocaleString()}</td>
                     <td className="px-4 py-3 text-right">
                       {c.metrics.cpl !== null ? fmtCurrency(c.metrics.cpl, 2) : "—"}

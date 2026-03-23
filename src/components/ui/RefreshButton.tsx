@@ -26,24 +26,24 @@ export function RefreshButton({ clientId }: RefreshButtonProps) {
     setMessage("");
 
     try {
-      const res = await fetch(`/api/clients/${clientId}/sync`, { method: "POST" });
-      const data = await res.json();
+      // Run metrics sync + asset discovery in parallel for complete refresh
+      const [syncRes, discoverRes] = await Promise.allSettled([
+        fetch(`/api/clients/${clientId}/sync`,     { method: "POST" }).then((r) => r.json()),
+        fetch(`/api/clients/${clientId}/discover`, { method: "POST" }).then((r) => r.json()),
+      ]);
 
-      if (data.success) {
-        const now = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-        setLastSynced(now);
-        localStorage.setItem(`lastSync_${clientId}`, now);
-        setMessage(`${data.itemsProcessed} snapshots updated`);
-        setState("success");
-        // Reload page after 1.5s so charts/tables refresh
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500);
-      } else {
-        setMessage(data.error ?? "Sync failed");
-        setState("error");
-        setTimeout(() => setState("idle"), 4000);
-      }
+      const syncData     = syncRes.status     === "fulfilled" ? syncRes.value     : null;
+      const discoverData = discoverRes.status === "fulfilled" ? discoverRes.value : null;
+      const snapshotsCount = syncData?.itemsProcessed    ?? 0;
+      const adsCount       = discoverData?.itemsProcessed ?? 0;
+
+      const now = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+      setLastSynced(now);
+      localStorage.setItem(`lastSync_${clientId}`, now);
+      setMessage(`${snapshotsCount} metrics · ${adsCount} ads`);
+      setState("success");
+      // Reload page after 1.5s so all sections reflect new data
+      setTimeout(() => { window.location.reload(); }, 1500);
     } catch {
       setMessage("Network error");
       setState("error");
